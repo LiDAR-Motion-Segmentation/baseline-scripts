@@ -1,0 +1,89 @@
+data:
+  num_pointclouds: 2
+  add_timestamp_feat: True
+  apply_augmentations: True
+  transform_pointclouds: True
+  root_dir: "/scratch/soumo_roy/semantic-kitty-dataset/dataset"
+  train_sequences:
+    - 0
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    - 6
+    - 7
+    - 9
+    - 10
+  val_sequences:
+    - 8
+  test_sequences:
+    - 8
+
+logging:
+  wandb:
+    run_root_dir: "/scratch/soumo_roy/temporal-point-transformer"
+    project: "lidar-motion-segmentation"
+    entity: "eshaan-rithesh2023-vit-chennai"
+    log_model: False
+    save_code: False
+    group: "temporal-point"
+    name: "patch64-kitty-dataset"
+    resume: "never"
+    log_dir: "/scratch/soumo_roy/temporal-point-transformer/logs"
+
+training:
+  seed: 42
+  batch_size: 1
+  num_workers: 4
+  max_epochs: 10
+  accelerator: "auto"          # Use 'auto' for automatic selection based on hardware
+  devices: "auto"              # Use 'auto' for automatic device selection (GPU or CPU)
+  log_every_n_steps: 10
+  lr: 3e-5
+
+model:
+  in_channels: 4 #has to be 4 for (x, y, z, t) per point
+  patch_size: 64
+  order: ["z", "z-trans", "hilbert", "hilbert-trans"]
+  stride: [2, 2, 2, 2] 
+  enc_depths: [2, 2, 2, 6, 2]
+  enc_channels: [32, 64, 128, 256, 512]
+  enc_num_head: [2, 4, 8, 16, 32]
+  enc_patch_size: ${repeat:${model.patch_size}, 5}
+  dec_depths: [2, 2, 2, 2]
+  dec_channels: [1, 64, 128, 256]
+  dec_num_head: [1, 4, 8, 16]
+  dec_patch_size: ${repeat:${model.patch_size}, 4}
+  mlp_ratio: 4 
+  qkv_bias: True 
+  qk_scale: null
+  attn_drop: 0.0
+  proj_drop: 0.0
+  drop_path: 0.3
+  pre_norm: True
+  shuffle_orders: True
+  enable_rpe: False
+  enable_flash: True
+  upcast_attention: False
+  upcast_softmax: False
+  cls_mode: False
+  pdnorm_bn: False
+  pdnorm_ln: False
+  pdnorm_decouple: True
+  pdnorm_adaptive: False
+  pdnorm_affine: True
+  pdnorm_conditions: ["ScanNet", "S3DIS", "Structured3D"]
+
+
+# for evaluation and visualisation
+checkpoint_path: ""
+lidar_path: ""
+mask_path: ""
+threshold: 0.5
+
+# ------------------
+hydra:
+  run:
+    dir: .
+  output_subdir: null
