@@ -23,4 +23,9 @@ python3 -m scripts.train_semantic_kitty.py
 ```
 export CUDA_VISIBLE_DEVICES=0
 ```
+- To run the evaluation script for semantic kitty use
+```
+python3 -m scripts.eval_semantic_kitty --config_path <path>/config/semantic_kitty_config.yaml --checkpoint_path <path>/best-checkpoint-epoch=07-val_loss=0.00-v1.ckpt
+```
+
 - the utilities for point cloud  processing is present in `pointcloud_utils.py` and the config used for training along with the split is present in config folder in `semantic_kitty_config.yaml`
