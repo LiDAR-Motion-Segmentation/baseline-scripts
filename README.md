@@ -1,6 +1,5 @@
 # baseline-scripts for temporal-point-transformer
-Extra utility codes used to run baselines smoothly, for JRDB dataset and semantic kitty dataset. The literature review is present in this [notion page](https://www.notion.so/Research-papers-list-ICRA-2026-1aa765b4ea4f8094b424f38bc8c48faf).
-
+Extra utility codes used to run baselines smoothly, for JRDB dataset and semantic kitty dataset. 
 
 ## semantic kitty scripts
 ### the files are placed in training_script_semantic_kitty directory
@@ -17,6 +16,10 @@ DATAROOT
     │   ├── labels
     │   └── velodyne
     |── 01-10
+
+# sequences for training: 00-10
+# sequences for validation: 08
+# sequences for testing: 08
 ```
 
 - activate the evironment (the environment file is environment.yml)
@@ -67,7 +70,7 @@ logging:
 - Blue line is on JRDB dataset and red line is on Semantic kitty dataset
 ![alt text](image.png)
 
-- In Scripts folder `eval_semantic_kitty.py` should print the output below in this way
+- In Scripts folder `eval_semantic_kitty.py` should print the output below in this way for sequence 8
 ```
 ==================================================
 🧪 Test Metrics Summary
@@ -88,3 +91,6 @@ python3 -m scripts.visualize_semantic_kitty --config_path <path>/config/semantic
 ```
 - left side is the predictions and right side is the ground truth
 ![alt text](image-1.png)
+
+## Acknowledgment
+- I have used [temporal-point-transformer](https://github.com/LiDAR-Motion-Segmentation/temporal-point-transformer) model to train and evaluate on.
