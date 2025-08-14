@@ -5,7 +5,7 @@ Extra utility codes used to run baselines smoothly, for JRDB dataset and semanti
 - the files are placed in `training_script_semantic_kitty` directory
 
 - semantic kitty dataset structure, Download it from here [SemanticKITTI](http://www.semantic-kitti.org/dataset.html#download) (including **Velodyne point clouds**, **calibration data** and **label data**).
-- instructions for JRDB will be added soon and scripts are in `utils` directory
+- instructions for JRDB will be added soon and scripts are in `training_script_JRDB` directory
 ```
 DATAROOT
 └── sequences
@@ -68,7 +68,7 @@ logging:
     log_dir: "/scratch/<username>/temporal-point-transformer/logs"
 ```
 - Blue line is on JRDB dataset and red line is on Semantic kitty dataset
-![alt text](image.png)
+![alt text](./assets/image.png)
 
 - In Scripts folder `eval_semantic_kitty.py` should print the output below in this way for sequence 8
 ```
@@ -90,7 +90,7 @@ rerun --serve & disown
 python3 -m scripts.visualize_semantic_kitty --config_path <path>/config/semantic_kitty_config.yaml --checkpoint_path <path>/best-checkpoint-epoch=07-val_loss=0.00-v1.ckpt
 ```
 - left side is the predictions and right side is the ground truth
-![alt text](image-1.png)
+![alt text](./assets/image-1.png)
 
 ## Acknowledgment
 - I have used [temporal-point-transformer](https://github.com/LiDAR-Motion-Segmentation/temporal-point-transformer) model to train and evaluate on.
