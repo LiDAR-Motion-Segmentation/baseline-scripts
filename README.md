@@ -26,6 +26,7 @@ DATAROOT
 ```
 conda env create -f environment.yml
 conda activate lidar_moseg
+pip install e .
 ```
 - to run and test the train dataloader and test dataloader script (move this script to the dataloader directory in codebase which ever is used)
 ```
