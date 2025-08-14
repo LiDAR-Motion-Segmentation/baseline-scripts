@@ -2,10 +2,10 @@
 Extra utility codes used to run baselines smoothly, for JRDB dataset and semantic kitty dataset. 
 
 ## semantic kitty scripts
-### the files are placed in training_script_semantic_kitty directory
+- the files are placed in `training_script_semantic_kitty` directory
 
 - semantic kitty dataset structure, Download it from here [SemanticKITTI](http://www.semantic-kitti.org/dataset.html#download) (including **Velodyne point clouds**, **calibration data** and **label data**).
-- instructions for JRDB will be added soon
+- instructions for JRDB will be added soon and scripts are in `utils` directory
 ```
 DATAROOT
 └── sequences
