@@ -101,7 +101,6 @@ dependencies:
       - fastjsonschema==2.21.1
       - filelock==3.18.0
       - fire==0.7.0
-      - flash-attn==2.8.2
       - flask==3.1.1
       - fonttools==4.59.0
       - frozenlist==1.7.0
