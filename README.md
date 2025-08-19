@@ -107,11 +107,11 @@ python3 -m scripts.visualize_semantic_kitty --config_path <path>/config/semantic
 ```
 DATAROOT
 └──bag name
-    ├── camera1_images      # (.png format)
+    ├── camera1_images      # (.png format) (format : 0000000000000000000.png)
     ├── camera1_intrinsics  # (.npz format) (format : D,K,height,width)
-    ├── camera2_images      # (.png format)
+    ├── camera2_images      # (.png format) (format : 0000000000000000000.png)
     ├── camera2_intrinsics  # (.npz format) (format : D,K,height,width)
-    ├── lidar               # (.pcd format) 
+    ├── lidar               # (.pcd format) (format : 0000000000000000000.pcd)
 ```
 
 ## Future work
