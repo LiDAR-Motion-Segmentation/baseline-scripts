@@ -19,8 +19,8 @@ def main():
     # Camera configuration arguments
     parser.add_argument('--camera-topic', required=True, help='Primary camera image topic')
     parser.add_argument('--camera-info-topic', required=True, help='Primary camera info topic')
-    parser.add_argument('--camera-topic-2', default=None, help='Secondary camera image topic (optional)')
-    parser.add_argument('--camera-info-topic-2', default=None, help='Secondary camera info topic (optional)')
+    parser.add_argument('--camera-topic-2', default=True, help='Secondary camera image topic (optional)')
+    parser.add_argument('--camera-info-topic-2', default=True, help='Secondary camera info topic (optional)')
     
     # Processing options
     parser.add_argument('--sync-tol', type=float, default=0.1, help='Synchronization tolerance in seconds')
