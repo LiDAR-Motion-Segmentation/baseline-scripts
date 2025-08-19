@@ -96,13 +96,22 @@ python3 -m scripts.visualize_semantic_kitty --config_path <path>/config/semantic
 ## ROSbag processing for custom Dataset
 
 - remember to change the directories in the bash scripts as per your directory path for seamless usage
-- it gives a directory with images,camera intrinsics and pointclouds seperately with synced timestamps
 ```
 # for ROS2 humble bags
 ./rosbag_processing_script/process_ros2_bag.sh
 
 # for ROS1 noetic bags
 ./rosbag_processing_script/process_ros1_bag.sh
+```
+- it gives a directory with images,camera intrinsics and pointclouds seperately with synced timestamps
+```
+DATAROOT
+└──bag name
+    ├── camera1_images      # (.png format)
+    ├── camera1_intrinsics  # (.npz format)
+    ├── camera2_images      # (.png format)
+    ├── camera2_intrinsics  # (.npz format)
+    ├── lidar               # (.pcd format)
 ```
 
 ## Future work
