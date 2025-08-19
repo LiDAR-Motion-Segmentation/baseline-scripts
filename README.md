@@ -93,5 +93,20 @@ python3 -m scripts.visualize_semantic_kitty --config_path <path>/config/semantic
 - left side is the predictions and right side is the ground truth
 ![alt text](./assets/image-1.png)
 
+## ROSbag processing for custom Dataset
+
+- remember to change the directories in the bash scripts as per your directory path for seamless usage
+- it gives a directory with images,camera intrinsics and pointclouds seperately with synced timestamps
+```
+# for ROS2 humble bags
+./rosbag_processing_script/process_ros2_bag.sh
+
+# for ROS1 noetic bags
+./rosbag_processing_script/process_ros1_bag.sh
+```
+
+## Future work
+- adding annotation pipeline scripts
+
 ## Acknowledgment
 - I have used [temporal-point-transformer](https://github.com/LiDAR-Motion-Segmentation/temporal-point-transformer) model to train and evaluate on.
