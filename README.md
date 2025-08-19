@@ -105,5 +105,8 @@ python3 -m scripts.visualize_semantic_kitty --config_path <path>/config/semantic
 ./rosbag_processing_script/process_ros1_bag.sh
 ```
 
+## Future work
+- adding annotation pipeline scripts
+
 ## Acknowledgment
 - I have used [temporal-point-transformer](https://github.com/LiDAR-Motion-Segmentation/temporal-point-transformer) model to train and evaluate on.
