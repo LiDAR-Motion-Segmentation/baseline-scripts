@@ -76,7 +76,7 @@ class CustomDataAnalyzer:
                          cam1_intrinsics,
                          cam2_imgs,
                          cam2_intrinsics,
-                         lidar_files):
+                         lidar_files) -> list:
         """create a sycchronized data"""
         timestamp_data = defaultdict(dict) #to group data by timestamp
         
@@ -122,4 +122,24 @@ class CustomDataAnalyzer:
         print(f" Complete frames (LiDAR + both cameras): {complete_frames}")
         return sync_data
     
-    def 
+    def load_instrinsics(self, intrinsic_file: Path):
+        try:
+            data = np.load(intrinsic_file)
+            intrinsic = {
+                'D': data['D'] if 'D' in data else np.zeros(5),
+                'K': data['K'] if 'K' in data else np.eye(3),
+                'height': int(data['height']),
+                'width': int(data['width'])
+            }
+            K = np.array(intrinsic['K'])
+            intrinsic['fx'] = float(K[0, 0])
+            intrinsic['fy'] = float(K[1, 1])
+            intrinsic['cx'] = float(K[0, 2])
+            intrinsic['cy'] = float(K[1, 2])            
+            return intrinsic
+        
+        except Exception as e:
+            print (f"error loading intrinsic file {intrinsic_file}: {e}")
+            return None
+        
+    
