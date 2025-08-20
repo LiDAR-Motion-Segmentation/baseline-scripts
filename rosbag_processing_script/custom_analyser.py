@@ -142,4 +142,43 @@ class CustomDataAnalyzer:
             print (f"error loading intrinsic file {intrinsic_file}: {e}")
             return None
         
+    def save_sync_data(self, sync_data, output_file):
+        """saving the synced data to a JSON file"""
+        with open(output_file, 'w') as f:
+            json.dump(sync_data, f, indent=2)
+        print(f"syncronised map saved to : {output_file}")
+              
+def main():
+    parser = argparse.ArgumentParser(description="Analyse custom bag data structure")
+    parser.add_argument("bag_path", help="Path to the bag directory")
+    parser.add_argument("--output", "-o", help="Output JSON file for sync map")
+    args =  parser.parse_args()
     
+    analyzer = CustomDataAnalyzer(args.bag_path)
+    sync_data = analyzer.analyse_data()
+    
+    if sync_data:
+        output_file = args.output if args.output else f"{analyzer.bag_name}_sync_map.json"
+        analyzer.save_sync_data(sync_data, output_file)
+        
+        # printing a sample to check
+        try:
+            sample_entry = sync_data[0] 
+        except:
+            print(f"the sample entry doesnt exist {sample_entry}")
+            return None
+        
+        if sample_entry and sample_entry.get('camera1_intrinsics'):
+            print("\n Sample Camera1 Intrinsics:")
+            intrinsics = analyzer.load_intrinsics(sample_entry['camera1_intrinsics'])
+            if intrinsics:
+                print(f"   Resolution: {intrinsics['width']}x{intrinsics['height']}")
+                print(f"   Focal length: fx={intrinsics['fx']:.1f}, fy={intrinsics['fy']:.1f}")
+                print(f"   Principal point: cx={intrinsics['cx']:.1f}, cy={intrinsics['cy']:.1f}")
+                
+        return output_file
+    return None
+
+if __name__ == "__main__":
+    main()
+    print(f"The code starts")
