@@ -50,7 +50,7 @@ class CustomDataAnalyzer:
         camera2_intrinsics = sorted(self.camera2_intrinsics_path.glob("*.npz"))
         lidar_files = sorted(self.lidar_path.glob("*.pcd"))
         
-        print(f"📊 Data Analysis for {self.bag_name}:")
+        print(f" Data Analysis for {self.bag_name}:")
         print(f"   Camera1 images: {len(camera1_imgs)}")
         print(f"   Camera1 intrinsics: {len(camera1_intrinsics)}")
         print(f"   Camera2 images: {len(camera2_imgs)}")
@@ -71,6 +71,55 @@ class CustomDataAnalyzer:
             print(f"Inavalid timestamp in file: {file_path}")
             return 0
         
-    
+    def create_sync_data(self, 
+                         cam1_imgs,
+                         cam1_intrinsics,
+                         cam2_imgs,
+                         cam2_intrinsics,
+                         lidar_files):
+        """create a sycchronized data"""
+        timestamp_data = defaultdict(dict) #to group data by timestamp
         
+        for img_file in cam1_imgs:
+            timestamp = self.extract_timestamps(img_file)
+            timestamp_data[timestamp]['camera1_image'] = str(img_file)
+            
+        for intrinsic_file in cam1_intrinsics:
+            timestamp = self.extract_timestamps(intrinsic_file)
+            timestamp_data[timestamp]['camera1_intrinsic'] = str(intrinsic_file)
+            
+        for img_file in cam2_imgs:
+            timestamp = self.extract_timestamps(img_file)
+            timestamp_data[timestamp]['camera2_image'] = str(img_file)
+            
+        for intrinsic_file in cam2_intrinsics:
+            timestamp = self.extract_timestamps(intrinsic_file)
+            timestamp_data[timestamp]['camera2_intrinsic'] = str(intrinsic_file)
+            
+        for lidar_file in lidar_files:
+            timestamp = self.extract_timestamps(lidar_file)
+            timestamp_data[timestamp]['lidar'] = str(lidar_file)
+            
+        sync_data = []
+        for timestamp in sorted(timestamp_data.keys()):
+            data = timestamp_data[timestamp]
+            if 'lidar' in data:
+                sync_entry = {
+                    'frame_id': len(sync_data),
+                    'timestamp': timestamp,
+                    'camera1_image': data.get('camera1_image'),
+                    'camera1_instrinsic': data.get('camera1_intrinsic'),
+                    'camera2_image': data.get('camera2_image'),
+                    'camera2_instrinsic': data.get('camera2_intrinsic'),
+                    'has_camera1': 'camera1_image' in data,
+                    'has_camera2': 'camera2_image' in data,
+                    'complete_frame': all(k in data for k in ['lidar', 'camera1_image', 'camera2_image'])
+                }
+                sync_data.append(sync_entry)
+            
+        print(f" Synchronized {len(sync_data)} frames")
+        complete_frames = sum(1 for entry in sync_data if entry['complete_frame'])
+        print(f" Complete frames (LiDAR + both cameras): {complete_frames}")
+        return sync_data
     
+    def 
