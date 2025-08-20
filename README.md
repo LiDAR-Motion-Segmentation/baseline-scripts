@@ -114,8 +114,16 @@ DATAROOT
     ├── lidar               # (.pcd format) (format : 0000000000000000000.pcd)
 ```
 
-## Future work
-- adding annotation pipeline scripts
+##  Custom Data Annotation
+1) Multi-Camera Support: Leverages both front and back cameras
+
+2) Synchronized Data: Properly handles temporal synchronization
+
+3) Semi-Automatic: YOLO pre-annotation reduces manual work
+
+4) Frustum Projection: Accurate 3D labeling from 2D detections
+
+5) Visualization: Comprehensive visualizations for quality control
 
 ## Acknowledgment
 - I have used [temporal-point-transformer](https://github.com/LiDAR-Motion-Segmentation/temporal-point-transformer) model to train and evaluate on.
