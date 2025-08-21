@@ -128,4 +128,179 @@ class CustomMultiSensorAnnotator:
         pcd = o3d.io.read_point_cloud(frame_data['lidar'])
         points = np.asarray(pcd.points)
         
-        if 
+        if len(points) == 0:
+            print(f"Warning: Empty point cloud for frame {frame_id}")
+            return None
+        
+        # labels intitialization (0 = static, 1 = moving)
+        labels = np.zeros(len(points), dtype=np.int32)
+        
+        all_detection = []
+        
+        # process camera1 if available 
+        if frame_data['has_camera1'] and frame_data['camera1_intrinsics']:
+            try:
+                img1 = cv2.imread(frame_data['camera1_image'])
+                intrinsics1 = self.load_intrinsics(frame_data['camera1_intrinsic'])
+                if img1 is not None and intrinsics1 is not None:
+                    detection1 = self.detect_2d_objects(img1)
+                    
+                    for det in detection1:
+                        det['camera'] = 'camera1'
+                        det['image_file'] = frame_data['camera1_image']
+                        
+                    all_detection.extend(detection1)
+                    
+                    # apply frustum-based labelling
+                    for detection in detection1:
+                        frustum = self.create_frustum_from_bbox(detection['bbox'], intrinsics1)
+                        mask = self.filter_points_in_frustum(points, frustum)
+                        labels[mask] = 1 # marking moving obstacles
+                        
+            except Exception as e:
+                print(f"Error processing camera1 for frame {frame_id}: {e}")
+        
+        # process camera2 if available 
+        if frame_data['has_camera2'] and frame_data['camera2_intrinsics']:
+            try:
+                img2 = cv2.imread(frame_data['camera2_image'])
+                intrinsics2 = self.load_intrinsics(frame_data['camera2_intrinsic'])
+                if img2 is not None and intrinsics2 is not None:
+                    detection2 = self.detect_2d_objects(img2)
+                    
+                    for det in detection2:
+                        det['camera'] = 'camera2'
+                        det['image_file'] = frame_data['camera2_image']
+                        
+                    all_detection.extend(detection2)
+                    
+                    # apply frustum-based labelling
+                    for detection in detection2:
+                        frustum = self.create_frustum_from_bbox(detection['bbox'], intrinsics2)
+                        mask = self.filter_points_in_frustum(points, frustum)
+                        labels[mask] = 1 # marking moving obstacles
+                        
+            except Exception as e:
+                print(f"Error processing camera2 for frame {frame_id}: {e}")
+                
+        # create annotation data
+        annotation_data = {
+            'frame_id': frame_id,
+            'timestamp': timestamp,
+            'lidar_file': frame_data['lidar'],
+            'camera1_image': frame_data.get('camera1_image'),
+            'camera2_image': frame_data.get('camera2_image'),
+            'detection_2d': all_detection,
+            'num_points': len(points),
+            'moving_points': int(np.sum(labels == 1)),
+            'static_points': int(np.sum(labels == 0)),
+            'moving_ratio': float(np.sum(labels == 1) / len(points)) if len(points) > 0 else 0.0
+        }
+        
+        # Save labels in binary format (compatible with SemanticKITTI)
+        label_file = self.output_dir / "labels" / f"{timestamp:019d}.label"
+        labels.astype(np.uint32).tofile(label_file)
+        
+        self.create_visulization(points, labels, frame_data, all_detection)
+        return annotation_data
+    
+    def create_visulization(self, points, labels, frame_data, detections):
+        frame_id = frame_data['frame_id']
+        timestamp = frame_data['timstamp']
+        
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(points)
+        
+        # static grey colour , moving as red colour 
+        colours = np.zeros((len(points), 3))
+        colours[labels == 0] = [0.7,0.7,0.7]
+        colours[labels == 1] = [1.0,0.0,0.0]
+        
+        # need to understand this portion
+        pcd.colors = o3d.utility.Vector3dVector(colours)
+        
+        viz_file = self.output_dir / "visualization" / f"{timestamp:019d}_labeled.ply"
+        o3d.io.write_point_cloud(str(viz_file), pcd)
+        
+        # 2D detection visualization
+        for detection in detections:
+            camera_name = detection['camera']
+            image_file = detection['image_file']
+            img =  cv2.imread(image_file)
+            if img is None:
+                camera_detections = [d for d in detections if d['camera'] == camera_name]
+                
+                for det in camera_detections:
+                    x1, y1, x2, y2 = map(int, det['bbox'])
+                    label = f"{det['class_name']}: {det['confidence']:.2f}"
+                    
+                    cv2.rectangle(img, (x1,y1), (x2,y2), (0, 255, 0), 2)
+                    cv2.putText(img, label, (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                
+                # need to check the png format once    
+                det_viz_file = self.output_dir / "detection_2d" / f"{timestamp:019d}_{camera_name}.jpg"
+                cv2.imwrite(str(det_viz_file), img)
+                break
+            
+    def process_all_frames(self, max_frames=None):
+        if max_frames:
+            frames_to_process = self.sync_map[:max_frames]
+        else:
+            self.sync_map
+            
+        print(f"Processing {len(frames_to_process)} frames...")
+        
+        for frame_data in tqdm(frames_to_process, desc="Annotating frames"):
+            try:
+                annotation_data = self.annotate_frame(frame_data)
+                if annotation_data:
+                    self.annotation.append(annotation_data)
+            except Exception as e:
+                print(f" Error processing frame {frame_data['frame_id']}: {e}")
+                continue
+            
+        self.save_annotation_summary()
+        self.print_statistics()
+        
+    def save_annotation_summary(self):
+        summary_file = self.output_dir / "annotation_summary.json"
+        with open(summary_file, 'w') as f:
+            json.dump(self.annotation, f, indent=2)
+            
+        print(f"Annotation summary saved to: {summary_file}")
+        
+    def print_statistics(self):
+        if not self.annotation:
+            print("No annotations generated")
+            return
+        
+        total_points = sum(ann['num_points'] for ann in self.annotation)
+        total_moving = sum(ann['moving_points'] for ann in self.annotation)
+        total_static = sum(ann['static_points'] for ann in self.annotation)
+        
+        total_detections = sum(len(ann['detections_2d']) for ann in self.annotation)
+        frames_with_detections = sum(1 for ann in self.annotation if ann['detections_2d'])
+        
+        print(f"\n Annotation Statistics:")
+        print(f"   Total frames processed: {len(self.annotation)}")
+        print(f"   Frames with detections: {frames_with_detections}")
+        print(f"   Total 2D detections: {total_detections}")
+        print(f"   Total points: {total_points:,}")
+        print(f"   Moving points: {total_moving:,} ({total_moving/total_points*100:.1f}%)")
+        print(f"   Static points: {total_static:,} ({total_static/total_points*100:.1f}%)")
+        
+        # average moving ratio
+        avg_moving_ratio = np.mean([ann['moving_ratio'] for ann in self.annotation])
+        print(f"   Average moving ratio: {avg_moving_ratio*100:.1f}%")
+        
+def main():
+    parser = argparse.ArgumentParser(description= "Custom multi-sensor annotator")
+    parser.add_argument("sync_map", help="Path to synchronization map JSON file")
+    parser.add_argument("--output", "-o", default="annotations", help="Output directory")
+    parser.add_argument("--max_frames", "-n", type=int, help="Maximum frames to process")
+    args = parser.parse_args()
+    annotator = CustomMultiSensorAnnotator(args.sync_map, args.output)
+    annotator.process_all_frames(max_frames=args.max_frames)
+        
+if __name__ == "__main__":
+    main()
