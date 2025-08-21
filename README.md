@@ -129,6 +129,7 @@ DATAROOT
 python custom_analyzer.py /path/to/DATAROOT/my_bag
 
 # Step 2: Generate annotations  
+pip install ultralytics
 python rosbag_custom_annotator.py my_bag_sync_map.json --output my_bag_annotations
 
 # Step 3: Convert to KITTI

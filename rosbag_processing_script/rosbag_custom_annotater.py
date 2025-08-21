@@ -8,11 +8,22 @@ import json
 import argparse
 from ultralytics import YOLO
 from tqdm import tqdm
+import os
+
+def mkdir_parent_directory(path):
+    """Create directory with parents, compatible with older Python versions"""
+    path = Path(path)
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except TypeError:
+        # Fallback for older pathlib versions
+        if not path.exists():
+            os.makedirs(str(path), exist_ok=True)
 
 class CustomMultiSensorAnnotator:
     def __init__(self, sync_map_file, output_dir):
         self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(parent=True, exist_ok=True)
+        mkdir_parent_directory(self.output_dir)
         
         # new sub directories for storing the data
         (self.output_dir / "labels").mkdir(exist_ok=True)
@@ -246,7 +257,7 @@ class CustomMultiSensorAnnotator:
         if max_frames:
             frames_to_process = self.sync_map[:max_frames]
         else:
-            self.sync_map
+            frames_to_process = self.sync_map
             
         print(f"Processing {len(frames_to_process)} frames...")
         
