@@ -124,6 +124,21 @@ DATAROOT
 4) Frustum Projection: Accurate 3D labeling from 2D detections
 
 5) Visualization: Comprehensive visualizations for quality control
+```
+# Step 1: Analyze data
+python custom_analyzer.py /path/to/DATAROOT/my_bag
+
+# Step 2: Generate annotations  
+python custom_annotator.py my_bag_sync_map.json --output my_bag_annotations
+
+# Step 3: Convert to KITTI
+python convert_to_kitti.py my_bag_annotations --output my_kitti_dataset
+
+# Step 4: Manual refinement (optional)
+pip install labelCloud
+python prepare_for_labelcloud.py my_bag_annotations
+cd labelcloud_workspace && labelCloud
+```
 
 ## Acknowledgment
 - I have used [temporal-point-transformer](https://github.com/LiDAR-Motion-Segmentation/temporal-point-transformer) model to train and evaluate on.
