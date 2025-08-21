@@ -129,7 +129,7 @@ DATAROOT
 python custom_analyzer.py /path/to/DATAROOT/my_bag
 
 # Step 2: Generate annotations  
-python custom_annotator.py my_bag_sync_map.json --output my_bag_annotations
+python rosbag_custom_annotator.py my_bag_sync_map.json --output my_bag_annotations
 
 # Step 3: Convert to KITTI
 python convert_to_kitti.py my_bag_annotations --output my_kitti_dataset
