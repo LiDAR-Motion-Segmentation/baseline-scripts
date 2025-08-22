@@ -107,10 +107,11 @@ class CustomDataAnalyzer:
                 sync_entry = {
                     'frame_id': len(sync_data),
                     'timestamp': timestamp,
+                    'lidar': data.get('lidar'),
                     'camera1_image': data.get('camera1_image'),
-                    'camera1_instrinsic': data.get('camera1_intrinsic'),
+                    'camera1_intrinsic': data.get('camera1_intrinsic'),
                     'camera2_image': data.get('camera2_image'),
-                    'camera2_instrinsic': data.get('camera2_intrinsic'),
+                    'camera2_intrinsic': data.get('camera2_intrinsic'),
                     'has_camera1': 'camera1_image' in data,
                     'has_camera2': 'camera2_image' in data,
                     'complete_frame': all(k in data for k in ['lidar', 'camera1_image', 'camera2_image'])
@@ -181,4 +182,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    print(f"The code starts")
