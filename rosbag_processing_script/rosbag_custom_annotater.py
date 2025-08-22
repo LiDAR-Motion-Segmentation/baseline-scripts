@@ -44,6 +44,9 @@ class CustomMultiSensorAnnotator:
             3: 'motorcycle', 
             5: 'bus', 
             7: 'truck',
+            14: 'bird',
+            15: 'cat',
+            16: 'dog'
         }
         
         self.annotation = []
@@ -149,7 +152,7 @@ class CustomMultiSensorAnnotator:
         all_detection = []
         
         # process camera1 if available 
-        if frame_data['has_camera1'] and frame_data['camera1_intrinsics']:
+        if frame_data['has_camera1'] and frame_data['camera1_intrinsic']:
             try:
                 img1 = cv2.imread(frame_data['camera1_image'])
                 intrinsics1 = self.load_intrinsics(frame_data['camera1_intrinsic'])
@@ -172,7 +175,7 @@ class CustomMultiSensorAnnotator:
                 print(f"Error processing camera1 for frame {frame_id}: {e}")
         
         # process camera2 if available 
-        if frame_data['has_camera2'] and frame_data['camera2_intrinsics']:
+        if frame_data['has_camera2'] and frame_data['camera2_intrinsic']:
             try:
                 img2 = cv2.imread(frame_data['camera2_image'])
                 intrinsics2 = self.load_intrinsics(frame_data['camera2_intrinsic'])
@@ -201,7 +204,7 @@ class CustomMultiSensorAnnotator:
             'lidar_file': frame_data['lidar'],
             'camera1_image': frame_data.get('camera1_image'),
             'camera2_image': frame_data.get('camera2_image'),
-            'detection_2d': all_detection,
+            'detections_2d': all_detection,
             'num_points': len(points),
             'moving_points': int(np.sum(labels == 1)),
             'static_points': int(np.sum(labels == 0)),
@@ -217,7 +220,7 @@ class CustomMultiSensorAnnotator:
     
     def create_visulization(self, points, labels, frame_data, detections):
         frame_id = frame_data['frame_id']
-        timestamp = frame_data['timstamp']
+        timestamp = frame_data['timestamp']
         
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(points)
@@ -249,15 +252,16 @@ class CustomMultiSensorAnnotator:
                     cv2.putText(img, label, (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
                 
                 # need to check the png format once    
-                det_viz_file = self.output_dir / "detection_2d" / f"{timestamp:019d}_{camera_name}.jpg"
+                det_viz_file = self.output_dir / "detections_2d" / f"{timestamp:019d}_{camera_name}.jpg"
                 cv2.imwrite(str(det_viz_file), img)
                 break
             
     def process_all_frames(self, max_frames=None):
-        if max_frames:
-            frames_to_process = self.sync_map[:max_frames]
-        else:
-            frames_to_process = self.sync_map
+        # if max_frames:
+        #     frames_to_process = self.sync_map[:max_frames]
+        # else:
+        #     frames_to_process = self.sync_map
+        frames_to_process = self.sync_map[:max_frames] if max_frames else self.sync_map
             
         print(f"Processing {len(frames_to_process)} frames...")
         
