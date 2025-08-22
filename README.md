@@ -134,11 +134,22 @@ python rosbag_custom_annotator.py my_bag_sync_map.json --output my_bag_annotatio
 
 # Step 3: Convert to KITTI
 python convert_to_kitti.py my_bag_annotations --output my_kitti_dataset
+```
 
-# Step 4: Manual refinement (optional)
-pip install labelCloud
-python prepare_for_labelcloud.py my_bag_annotations
-cd labelcloud_workspace && labelCloud
+Custom Data structure after running the code above
+```
+output_directory/
+├── labels/                    # .label files
+├── visualizations/            # .pcd files (labeled point clouds)
+├── visualization_camera_1/    # .png files from camera 1
+│   ├── 0000000000000000001_camera1.png
+│   ├── 0000000000000000002_camera1.png
+│   └── ...
+├── visualization_camera_2/    # .png files from camera 2
+│   ├── 0000000000000000001_camera2.png
+│   ├── 0000000000000000002_camera2.png
+│   └── ...
+└── annotation_summary.json
 ```
 
 ## Acknowledgment
