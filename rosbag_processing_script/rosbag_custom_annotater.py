@@ -9,6 +9,7 @@ import argparse
 from ultralytics import YOLO
 from tqdm import tqdm
 import os
+import traceback
 
 def mkdir_parent_directory(path):
     """Create directory with parents, compatible with older Python versions"""
@@ -28,7 +29,8 @@ class CustomMultiSensorAnnotator:
         # new sub directories for storing the data
         (self.output_dir / "labels").mkdir(exist_ok=True)
         (self.output_dir / "visualization").mkdir(exist_ok=True)
-        (self.output_dir / "detections_2d").mkdir(exist_ok=True)
+        (self.output_dir / "visualization_camera_1").mkdir(exist_ok=True)
+        (self.output_dir / "visualization_camera_2").mkdir(exist_ok=True)
         
         with open(sync_map_file, 'r') as f:
             self.sync_map = json.load(f)
@@ -50,6 +52,11 @@ class CustomMultiSensorAnnotator:
         }
         
         self.annotation = []
+        
+        print(f" Initialized CustomMultiSensorAnnotator")
+        print(f"   Output directory: {self.output_dir}")
+        print(f"   Sync map entries: {len(self.sync_map)}")
+        print(f"   YOLO model loaded: {type(self.yolo_model)}")
         
     def load_intrinsics(self, intrinsics_file):
         try:
@@ -76,26 +83,49 @@ class CustomMultiSensorAnnotator:
             boxes = result.boxes
             if boxes is not None:
                 for box in boxes:
-                    class_id = int(box.cls[0])
-                    confidence = float(box.conf)
+                    try:
+                        class_id = int(box.cls[0])
+                        confidence = float(box.conf)
+                        
+                        if class_id in self.moving_classes and confidence >= confidene_threshold:
+                            
+                            # check this line once
+                            # This gives [x1, y1, x2, y2]
+                            # x1, y1, x2, y2 = box.xyxy.cpu().numpy()
+                            xyxy = box.xyxy.cpu().numpy()
+                            # print(f" YOLO bounding box check: {xyxy}, shape: {xyxy.shape}")
+                            
+                            # if len(xyxy) == 4:
+                            x1, y1, x2, y2 = xyxy.flatten()
+                            
+                            if x2 > x1 and y2 > y1:
+                                detection.append({
+                                    'class_id': class_id,
+                                    'class_name': self.moving_classes[class_id],
+                                    'bbox': [float(x1), float(y1), float(x2), float(y2)],
+                                    'confidence': confidence
+                                })
+                            else:
+                                print(f"Invalid bbox coordinates: x1={x1}, y1={y1}, x2={x2}, y2={y2}")
+                                
+                    except Exception as e:
+                        print(f"error in processing yolo code: {e}")
+                        continue
                     
-                    if class_id in self.moving_classes and confidence >= confidene_threshold:
-                        
-                        # check this line once
-                        x1, y1, x2, y2 = box.xyxy.cpu().numpy()
-                        
-                        detection.append({
-                            'class_id': class_id,
-                            'class_name': self.moving_classes[class_id],
-                            'bbox': [float(x1), float(y1), float(x2), float(y2)],
-                            'confidence': confidence
-                        })
         return detection
     
     def create_frustum_from_bbox(self, bbox, intrinsics, depth_range=(0.5, 50.0)):
         """create 3D frustum from 2D bounding box"""
         
+        # if isinstance(bbox, (list, tuple)) and len(bbox) == 4:
+        #     x1, y1, x2, y2 = bbox
+        # elif hasattr(bbox, 'shape') and bbox.shape == (4,):
+        #     # If it's a numpy array
         x1, y1, x2, y2 = bbox
+        # else:
+        #     print(f" Invalid bbox format: {bbox}")
+        #     return np.array([]) 
+            
         fx, fy, cx, cy = intrinsics['fx'], intrinsics['fy'], intrinsics['cx'], intrinsics['cy']
         
         near, far = depth_range
@@ -136,16 +166,32 @@ class CustomMultiSensorAnnotator:
     
     def annotate_frame(self, frame_data):
         "annotating a single frame"
-        frame_id = frame_data['frame_id']
-        timestamp = frame_data['timestamp']
+        frame_id = frame_data.get('frame_id', 'unknown')
+        timestamp = frame_data.get('timestamp', 0)
         
-        pcd = o3d.io.read_point_cloud(frame_data['lidar'])
-        points = np.asarray(pcd.points)
-        
-        if len(points) == 0:
-            print(f"Warning: Empty point cloud for frame {frame_id}")
+        # Validate required fields
+        if 'lidar' not in frame_data or frame_data['lidar'] is None:
+            print(f" Frame {frame_id}: Missing lidar file")
             return None
         
+        lidar_file = frame_data['lidar']
+        
+        if not os.path.exists(lidar_file):
+            print(f" Frame {frame_id}: Lidar file does not exist: {lidar_file}")
+            return None
+        
+        try:
+            pcd = o3d.io.read_point_cloud(frame_data['lidar'])
+            points = np.asarray(pcd.points)
+            
+            if len(points) == 0:
+                print(f"Warning: Empty point cloud for frame {frame_id}")
+                return None
+        
+        except Exception as e:
+            print(f" Frame {frame_id}: Error loading point cloud: {e}")
+            return None
+            
         # labels intitialization (0 = static, 1 = moving)
         labels = np.zeros(len(points), dtype=np.int32)
         
@@ -157,12 +203,14 @@ class CustomMultiSensorAnnotator:
                 img1 = cv2.imread(frame_data['camera1_image'])
                 intrinsics1 = self.load_intrinsics(frame_data['camera1_intrinsic'])
                 if img1 is not None and intrinsics1 is not None:
+                    # print(f"Loaded intrinsics: fx={intrinsics1['fx']:.1f}, fy={intrinsics1['fy']:.1f}")
                     detection1 = self.detect_2d_objects(img1)
+                    print(f" Found {len(detection1)} detections")
                     
                     for det in detection1:
                         det['camera'] = 'camera1'
                         det['image_file'] = frame_data['camera1_image']
-                        
+                    
                     all_detection.extend(detection1)
                     
                     # apply frustum-based labelling
@@ -215,10 +263,10 @@ class CustomMultiSensorAnnotator:
         label_file = self.output_dir / "labels" / f"{timestamp:019d}.label"
         labels.astype(np.uint32).tofile(label_file)
         
-        self.create_visulization(points, labels, frame_data, all_detection)
+        self.create_visualization(points, labels, frame_data, all_detection)
         return annotation_data
     
-    def create_visulization(self, points, labels, frame_data, detections):
+    def create_visualization(self, points, labels, frame_data, detections):
         frame_id = frame_data['frame_id']
         timestamp = frame_data['timestamp']
         
@@ -233,29 +281,140 @@ class CustomMultiSensorAnnotator:
         # need to understand this portion
         pcd.colors = o3d.utility.Vector3dVector(colours)
         
-        viz_file = self.output_dir / "visualization" / f"{timestamp:019d}_labeled.ply"
-        o3d.io.write_point_cloud(str(viz_file), pcd)
-        
-        # 2D detection visualization
-        for detection in detections:
-            camera_name = detection['camera']
-            image_file = detection['image_file']
-            img =  cv2.imread(image_file)
-            if img is None:
-                camera_detections = [d for d in detections if d['camera'] == camera_name]
-                
-                for det in camera_detections:
-                    x1, y1, x2, y2 = map(int, det['bbox'])
-                    label = f"{det['class_name']}: {det['confidence']:.2f}"
-                    
-                    cv2.rectangle(img, (x1,y1), (x2,y2), (0, 255, 0), 2)
-                    cv2.putText(img, label, (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-                
-                # need to check the png format once    
-                det_viz_file = self.output_dir / "detections_2d" / f"{timestamp:019d}_{camera_name}.jpg"
-                cv2.imwrite(str(det_viz_file), img)
-                break
+        viz_file = self.output_dir / "visualization" / f"{timestamp:019d}_labeled.pcd"
+        saved_pcd = o3d.io.write_point_cloud(str(viz_file), pcd)
+        if saved_pcd:
+            print(f"Saved visualization file {saved_pcd}")
+        else:
+            print("failed to save visualization file")
             
+        self.create_camera_visualization(frame_data, detections, timestamp)
+        
+    def create_camera_visualization(self, frame_data, detections, timestamp):
+        camera1_viz_dir = self.output_dir / "visualization_camera_1"
+        camera2_viz_dir = self.output_dir / "visualization_camera_2"
+        
+        mkdir_parent_directory(camera1_viz_dir)
+        mkdir_parent_directory(camera1_viz_dir)
+        
+        # process Camera 1
+        if frame_data.get('has_camera1') and frame_data.get('camera1_image'):
+            camera1_image = frame_data['camera1_image']
+            if os.path.exists(camera1_image):
+                camera1_detections = [d for d in detections if d.get('camera') == 'camera1']
+                self.process_single_camera_visualization(
+                    camera_name='camera1',
+                    image_file=frame_data['camera1_image'],
+                    detections=detections,
+                    timestamp=timestamp,
+                    output_dir=camera1_viz_dir
+            )
+            else:
+                print(f" Camera1 image not found: {camera1_image}")
+        
+        # Process Camera 2
+        if frame_data.get('has_camera2') and frame_data.get('camera2_image'):
+            camera2_image = frame_data['camera2_image']
+            if os.path.exists(camera2_image):
+                camera2_detections = [d for d in detections if d.get('camera') == 'camera2']
+                self.process_single_camera_visualization(
+                    camera_name='camera2',
+                    image_file=frame_data['camera2_image'],
+                    detections=detections,
+                    timestamp=timestamp,
+                    output_dir=camera2_viz_dir
+                )
+            else:
+                print(f" Camera2 image not found: {camera2_image}")
+            
+    def process_single_camera_visualization(self, camera_name, image_file, detections, timestamp, output_dir):
+        try:
+            # Check if image file exists
+            if not os.path.exists(image_file):
+                print(f" Image file not found: {os.path.basename(image_file)}")
+                return
+            
+            # Load image
+            img = cv2.imread(image_file)
+            if img is None:
+                print(f" Failed to load image: {os.path.basename(image_file)}")
+                return
+            
+            camera_detections = [d for d in detections if d.get('camera') == camera_name]
+            
+            print(f" Processing {camera_name}: {len(camera_detections)} detections")
+            # Draw detections
+            for i, det in enumerate(camera_detections):
+                try:
+                    bbox = det['bbox']
+                    x1, y1, x2, y2 = map(int, bbox)
+                    confidence = det['confidence']
+                    class_name = det['class_name']
+                    
+                    # Color mapping for different classes
+                    color_map = {
+                        'person': (0, 255, 0),        # Green
+                        'car': (255, 0, 0),           # Blue
+                        'bicycle': (0, 255, 255),     # Yellow
+                        'motorcycle': (255, 0, 255), # Magenta
+                        'bus': (0, 165, 255),         # Orange
+                        'truck': (128, 0, 128),       # Purple
+                        'bird': (255, 255, 0),        # Cyan
+                        'cat': (255, 192, 203),       # Pink
+                        'dog': (165, 42, 42)          # Brown
+                    }
+                    
+                    color = color_map.get(class_name, (0, 255, 0))  # Default green
+                    
+                    # Draw bounding box with thicker lines
+                    cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
+                    
+                    # Prepare label text
+                    label = f"{class_name}: {confidence:.2f}"
+                    
+                    # Get text size for background
+                    font = cv2.FONT_HERSHEY_SIMPLEX
+                    font_scale = 0.7
+                    thickness = 2
+                    (text_width, text_height), _ = cv2.getTextSize(label, font, font_scale, thickness)
+                    
+                    # Draw label background
+                    label_bg_start = (x1, y1 - text_height - 10)
+                    label_bg_end = (x1 + text_width + 10, y1)
+                    cv2.rectangle(img, label_bg_start, label_bg_end, color, -1)
+                    
+                    # Draw label text
+                    cv2.putText(img, label, (x1 + 5, y1 - 5), font, font_scale, (255, 255, 255), thickness)
+                    
+                    print(f"Drew detection {i+1}: {class_name} at [{x1}, {y1}, {x2}, {y2}] conf:{confidence:.2f}")
+                    
+                except Exception as draw_error:
+                    print(f" Error drawing detection {i+1}: {draw_error}")
+                    continue
+            
+            # Add frame information overlay
+            info_text = f"Frame: {timestamp} | Camera: {camera_name.upper()} | Detections: {len(camera_detections)}"
+            cv2.putText(img, info_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+            
+            # Add border around image if there are detections
+            if camera_detections:
+                cv2.rectangle(img, (0, 0), (img.shape[1]-1, img.shape[0]-1), (0, 255, 0), 5)
+            
+            # Save visualization as .png
+            viz_filename = f"{timestamp:019d}_{camera_name}.png"
+            viz_file = output_dir / viz_filename
+            
+            success = cv2.imwrite(str(viz_file), img)
+            
+            if success:
+                print(f" Saved {camera_name} visualization: {viz_filename}")
+            else:
+                print(f"Failed to save {camera_name} visualization: {viz_filename}")
+                
+        except Exception as camera_error:
+            print(f" Error processing {camera_name} visualization: {camera_error}")
+            traceback.print_exc()
+                
     def process_all_frames(self, max_frames=None):
         # if max_frames:
         #     frames_to_process = self.sync_map[:max_frames]
