@@ -15,6 +15,7 @@ from sam2.build_sam import build_sam2
 from sam2.sam2_image_predictor import SAM2ImagePredictor
 SAM2_AVAILABLE = True
 print(" SAM2 successfully imported")
+import requests
 
 def mkdir_parent_directory(path):
     """Create directory with parents, compatible with older Python versions"""
@@ -25,6 +26,57 @@ def mkdir_parent_directory(path):
         # Fallback for older pathlib versions
         if not path.exists():
             os.makedirs(str(path), exist_ok=True)
+
+def download_sam2_checkpoint(model_size='large'):
+    """Download SAM2 checkpoint if not exists"""
+    
+    sam2_urls = {
+        'tiny': 'https://dl.fbaipublicfiles.com/segment_anything_2/072824/sam2_hiera_tiny.pt',
+        'small': 'https://dl.fbaipublicfiles.com/segment_anything_2/072824/sam2_hiera_small.pt',
+        'base': 'https://dl.fbaipublicfiles.com/segment_anything_2/072824/sam2_hiera_base_plus.pt',
+        'large': 'https://dl.fbaipublicfiles.com/segment_anything_2/072824/sam2_hiera_large.pt'
+    }
+    
+    checkpoint_names = {
+        'tiny': 'sam2_hiera_tiny.pt',
+        'small': 'sam2_hiera_small.pt',
+        'base': 'sam2_hiera_base_plus.pt',
+        'large': 'sam2_hiera_large.pt'
+    }
+    
+    checkpoint_name = checkpoint_names.get(model_size, checkpoint_names['large'])
+    checkpoint_path = Path(checkpoint_name)
+    
+    if checkpoint_path.exists():
+        print(f"✅ SAM2 checkpoint already exists: {checkpoint_name}")
+        return str(checkpoint_path)
+    
+    print(f"📥 Downloading SAM2 {model_size} checkpoint...")
+    url = sam2_urls.get(model_size, sam2_urls['large'])
+    
+    try:
+        response = requests.get(url, stream=True)
+        response.raise_for_status()
+        
+        total_size = int(response.headers.get('content-length', 0))
+        
+        with open(checkpoint_path, 'wb') as f, tqdm(
+            desc=f"Downloading {checkpoint_name}",
+            total=total_size,
+            unit='B',
+            unit_scale=True
+        ) as pbar:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+                    pbar.update(len(chunk))
+        
+        print(f"✅ Downloaded: {checkpoint_name}")
+        return str(checkpoint_path)
+        
+    except Exception as e:
+        print(f"❌ Failed to download SAM2 checkpoint: {e}")
+        return None
 
 class CustomMultiSensorAnnotator:
     def __init__(self, sync_map_file, output_dir, use_sam2=True, sam2_model_size='large'):
@@ -76,28 +128,94 @@ class CustomMultiSensorAnnotator:
         print(f" YOLO model loaded: {type(self.yolo_model)}")
         print(f" SAM2 enabled: {self.use_sam2}")
         
-    def setup_sam2(self, model_size):
-        sam2_configs = {
-            'tiny': 'sam2_hiera_t.yaml',
-            'small': 'sam2_hiera_s.yaml',
-            'base': 'sam2_hiera_b+.yaml',
-            'large': 'sam2_hiera_l.yaml'
-        }
-        sam2_checkpoints = {
-            'tiny': 'sam2_hiera_tiny.pt',
-            'small': 'sam2_hiera_small.pt',
-            'base': 'sam2_hiera_base_plus.pt', 
-            'large': 'sam2_hiera_large.pt'
-        }
-        config_name = sam2_configs.get(model_size, sam2_configs['large'])
-        checkpoint_name = sam2_checkpoints.get(model_size, sam2_configs['large'])
+    # def setup_sam2(self, model_size):
+    #     sam2_configs = {
+    #         'tiny': 'sam2_hiera_t.yaml',
+    #         'small': 'sam2_hiera_s.yaml',
+    #         'base': 'sam2_hiera_b+.yaml',
+    #         'large': 'sam2_hiera_l.yaml'
+    #     }
+    #     sam2_checkpoints = {
+    #         'tiny': 'sam2_hiera_tiny.pt',
+    #         'small': 'sam2_hiera_small.pt',
+    #         'base': 'sam2_hiera_base_plus.pt', 
+    #         'large': 'sam2_hiera_large.pt'
+    #     }
+    #     config_name = sam2_configs.get(model_size, sam2_configs['large'])
+    #     checkpoint_name = sam2_checkpoints.get(model_size, sam2_configs['large'])
         
-        sam2_model = build_sam2(config_name, checkpoint_name, device='cuda' if torch.cuda.is_available() else 'cpu')
-        self.sam2_predictor = SAM2ImagePredictor(sam2_model)
+    #     sam2_model = build_sam2(config_name, checkpoint_name, device='cuda' if torch.cuda.is_available() else 'cpu')
+    #     self.sam2_predictor = SAM2ImagePredictor(sam2_model)
         
-        print(f" SAM2 model size: {model_size}")
-        print(f" SAM2 device: {'cuda' if torch.cuda.is_available() else 'cpu'}")
+    #     print(f" SAM2 model size: {model_size}")
+    #     print(f" SAM2 device: {'cuda' if torch.cuda.is_available() else 'cpu'}")
         
+    def setup_sam2(self, model_size='large'):
+        """Initialize SAM2 model with robust error handling"""
+        try:
+            # Suppress CUDA warnings
+            # warnings.filterwarnings("ignore", category=UserWarning, module="torch.cuda")
+            
+            # Determine device - force CPU if CUDA issues
+            if torch.cuda.is_available():
+                try:
+                    # Test CUDA compatibility
+                    torch.cuda.init()
+                    self.device = 'cuda'
+                    print(f"   Using CUDA: {torch.cuda.get_device_name()}")
+                except Exception as cuda_error:
+                    print(f"   CUDA error: {cuda_error}")
+                    print("   Falling back to CPU")
+                    self.device = 'cpu'
+            else:
+                self.device = 'cpu'
+                print("   CUDA not available, using CPU")
+            
+            # Download checkpoint if needed
+            checkpoint_path = download_sam2_checkpoint(model_size)
+            if checkpoint_path is None or not os.path.exists(checkpoint_path):
+                print(f"❌ SAM2 checkpoint not found: {checkpoint_path}")
+                return
+            
+            # SAM2 configurations
+            sam2_configs = {
+                'tiny': 'sam2_hiera_t.yaml',
+                'small': 'sam2_hiera_s.yaml', 
+                'base': 'sam2_hiera_b+.yaml',
+                'large': 'sam2_hiera_l.yaml'
+            }
+            
+            config_name = sam2_configs.get(model_size, sam2_configs['large'])
+            
+            # Try to build SAM2 model
+            try:
+                sam2_model = build_sam2(config_name, checkpoint_path, device=self.device)
+                self.sam2_predictor = SAM2ImagePredictor(sam2_model)
+                
+                print(f"   SAM2 model size: {model_size}")
+                print(f"   SAM2 device: {self.device}")
+                
+            except Exception as build_error:
+                print(f"❌ Failed to build SAM2 model: {build_error}")
+                # Try CPU as fallback
+                if self.device == 'cuda':
+                    print("   Trying CPU fallback...")
+                    try:
+                        self.device = 'cpu'
+                        sam2_model = build_sam2(config_name, checkpoint_path, device='cpu')
+                        self.sam2_predictor = SAM2ImagePredictor(sam2_model)
+                        print("   ✅ SAM2 initialized on CPU")
+                    except Exception as cpu_error:
+                        print(f"   ❌ CPU fallback also failed: {cpu_error}")
+                        self.sam2_predictor = None
+                else:
+                    self.sam2_predictor = None
+                    
+        except Exception as e:
+            print(f"❌ SAM2 setup failed completely: {e}")
+            traceback.print_exc()
+            self.sam2_predictor = None
+            
     def load_intrinsics(self, intrinsics_file):
         try:
             data = np.load(intrinsics_file)
