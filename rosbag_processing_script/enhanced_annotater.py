@@ -514,7 +514,7 @@ class FixedMultiSensorAnnotator:
         
         pcd.colors = o3d.utility.Vector3dVector(colors)
         
-        viz_file = self.output_dir / "visualization" / f"{timestamp:019d}_labeled.pcd"
+        viz_file = self.output_dir / "visualization" / f"{timestamp:019d}.pcd"
         success = o3d.io.write_point_cloud(str(viz_file), pcd)
         if success:
             print(f"  💾 Saved point cloud visualization: {viz_file.name}")
