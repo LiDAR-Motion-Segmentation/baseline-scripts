@@ -13,9 +13,10 @@ import traceback
 import torch
 from sam2.build_sam import build_sam2
 from sam2.sam2_image_predictor import SAM2ImagePredictor
-SAM2_AVAILABLE = True
-print(" SAM2 successfully imported")
 import requests
+
+SAM2_AVAILABLE = True
+print("✅ SAM2 successfully imported")
 
 def mkdir_parent_directory(path):
     """Create directory with parents, compatible with older Python versions"""
@@ -23,13 +24,11 @@ def mkdir_parent_directory(path):
     try:
         path.mkdir(parents=True, exist_ok=True)
     except TypeError:
-        # Fallback for older pathlib versions
         if not path.exists():
             os.makedirs(str(path), exist_ok=True)
 
 def download_sam2_checkpoint(model_size='large'):
     """Download SAM2 checkpoint if not exists"""
-    
     sam2_urls = {
         'tiny': 'https://dl.fbaipublicfiles.com/segment_anything_2/072824/sam2_hiera_tiny.pt',
         'small': 'https://dl.fbaipublicfiles.com/segment_anything_2/072824/sam2_hiera_small.pt',
@@ -78,88 +77,64 @@ def download_sam2_checkpoint(model_size='large'):
         print(f"❌ Failed to download SAM2 checkpoint: {e}")
         return None
 
-class CustomMultiSensorAnnotator:
+class FixedMultiSensorAnnotator:
     def __init__(self, sync_map_file, output_dir, use_sam2=True, sam2_model_size='large'):
         self.output_dir = Path(output_dir)
         mkdir_parent_directory(self.output_dir)
         
-        # new sub directories for storing the data
+        # Create subdirectories
         (self.output_dir / "labels").mkdir(exist_ok=True)
         (self.output_dir / "visualization").mkdir(exist_ok=True)
-        (self.output_dir / "visualization_camera_1").mkdir(exist_ok=True)
-        (self.output_dir / "visualization_camera_2").mkdir(exist_ok=True)
+        # (self.output_dir / "visualization_camera_1").mkdir(exist_ok=True)
+        # (self.output_dir / "visualization_camera_2").mkdir(exist_ok=True)
         (self.output_dir / "segmentation_masks").mkdir(exist_ok=True)
+        (self.output_dir / "segmentation_masks" / "camera1").mkdir(exist_ok=True)
+        (self.output_dir / "segmentation_masks" / "camera2").mkdir(exist_ok=True)
+        mkdir_parent_directory(self.output_dir / "visualization_camera1")
+        mkdir_parent_directory(self.output_dir / "visualization_camera2")
         
         with open(sync_map_file, 'r') as f:
             self.sync_map = json.load(f)
         
-        # using yolov8 as of now will change in future
+        # Initialize YOLO
         self.yolo_model = YOLO('yolov8n.pt')
         
-        # initialize SAM2 for 3D object detection
+        # Initialize SAM2
         self.use_sam2 = use_sam2 and SAM2_AVAILABLE
         self.sam2_predictor = None
+        self.device = 'cpu'
         
         if self.use_sam2:
             try:
                 self.setup_sam2(sam2_model_size)
-                print(" SAM2 initialized successfully")
+                if self.sam2_predictor is not None:
+                    print("✅ SAM2 initialized successfully")
+                else:
+                    print("❌ SAM2 initialization failed, using YOLO only")
+                    self.use_sam2 = False
             except Exception as e:
-                print(f" Failed to initialize SAM2: {e}")
+                print(f"❌ Failed to initialize SAM2: {e}")
+                self.use_sam2 = False
         
-        # moving object classes , probably will have to change in the future
-        self.moving_classes =  {
-            0: 'person', 
-            1: 'bicycle', 
-            2: 'car', 
-            3: 'motorcycle', 
-            5: 'bus', 
-            7: 'truck',
-            14: 'bird',
-            15: 'cat',
-            16: 'dog'
+        # Moving object classes
+        self.moving_classes = {
+            0: 'person', 1: 'bicycle', 2: 'car', 3: 'motorcycle', 
+            5: 'bus', 7: 'truck', 14: 'bird', 15: 'cat', 16: 'dog'
         }
         
         self.annotation = []
         
-        print(f" Initialized CustomMultiSensorAnnotator")
-        print(f" Output directory: {self.output_dir}")
-        print(f" Sync map entries: {len(self.sync_map)}")
-        print(f" YOLO model loaded: {type(self.yolo_model)}")
-        print(f" SAM2 enabled: {self.use_sam2}")
-        
-    # def setup_sam2(self, model_size):
-    #     sam2_configs = {
-    #         'tiny': 'sam2_hiera_t.yaml',
-    #         'small': 'sam2_hiera_s.yaml',
-    #         'base': 'sam2_hiera_b+.yaml',
-    #         'large': 'sam2_hiera_l.yaml'
-    #     }
-    #     sam2_checkpoints = {
-    #         'tiny': 'sam2_hiera_tiny.pt',
-    #         'small': 'sam2_hiera_small.pt',
-    #         'base': 'sam2_hiera_base_plus.pt', 
-    #         'large': 'sam2_hiera_large.pt'
-    #     }
-    #     config_name = sam2_configs.get(model_size, sam2_configs['large'])
-    #     checkpoint_name = sam2_checkpoints.get(model_size, sam2_configs['large'])
-        
-    #     sam2_model = build_sam2(config_name, checkpoint_name, device='cuda' if torch.cuda.is_available() else 'cpu')
-    #     self.sam2_predictor = SAM2ImagePredictor(sam2_model)
-        
-    #     print(f" SAM2 model size: {model_size}")
-    #     print(f" SAM2 device: {'cuda' if torch.cuda.is_available() else 'cpu'}")
+        print(f"✅ Initialized FixedMultiSensorAnnotator")
+        print(f"   Output directory: {self.output_dir}")
+        print(f"   Sync map entries: {len(self.sync_map)}")
+        print(f"   YOLO model loaded: {type(self.yolo_model)}")
+        print(f"   SAM2 enabled: {self.use_sam2}")
         
     def setup_sam2(self, model_size='large'):
-        """Initialize SAM2 model with robust error handling"""
+        """Initialize SAM2 model"""
         try:
-            # Suppress CUDA warnings
-            # warnings.filterwarnings("ignore", category=UserWarning, module="torch.cuda")
-            
-            # Determine device - force CPU if CUDA issues
             if torch.cuda.is_available():
                 try:
-                    # Test CUDA compatibility
                     torch.cuda.init()
                     self.device = 'cuda'
                     print(f"   Using CUDA: {torch.cuda.get_device_name()}")
@@ -171,13 +146,11 @@ class CustomMultiSensorAnnotator:
                 self.device = 'cpu'
                 print("   CUDA not available, using CPU")
             
-            # Download checkpoint if needed
             checkpoint_path = download_sam2_checkpoint(model_size)
             if checkpoint_path is None or not os.path.exists(checkpoint_path):
                 print(f"❌ SAM2 checkpoint not found: {checkpoint_path}")
                 return
             
-            # SAM2 configurations
             sam2_configs = {
                 'tiny': 'sam2_hiera_t.yaml',
                 'small': 'sam2_hiera_s.yaml', 
@@ -187,17 +160,14 @@ class CustomMultiSensorAnnotator:
             
             config_name = sam2_configs.get(model_size, sam2_configs['large'])
             
-            # Try to build SAM2 model
             try:
                 sam2_model = build_sam2(config_name, checkpoint_path, device=self.device)
                 self.sam2_predictor = SAM2ImagePredictor(sam2_model)
-                
                 print(f"   SAM2 model size: {model_size}")
                 print(f"   SAM2 device: {self.device}")
                 
             except Exception as build_error:
                 print(f"❌ Failed to build SAM2 model: {build_error}")
-                # Try CPU as fallback
                 if self.device == 'cuda':
                     print("   Trying CPU fallback...")
                     try:
@@ -233,60 +203,67 @@ class CustomMultiSensorAnnotator:
             print(f"Error in loading the intrinsics: {e}")
             return None
         
-    def detect_and_segment_objects(self, image, confidene_threshold=0.5):
-        yolo_results = self.yolo_model(image)
-        detection = []
+    def detect_2d_objects(self, image, confidence_threshold=0.3):
+        """YOLO detection with logging"""
+        results = self.yolo_model(image)
+        detections = []
         
-        for result in yolo_results:
+        for result in results:
             boxes = result.boxes
             if boxes is not None:
                 for box in boxes:
                     try:
                         class_id = int(box.cls[0])
-                        confidence = float(box.conf)
+                        confidence = float(box.conf[0])
                         
-                        if class_id in self.moving_classes and confidence >= confidene_threshold:
+                        if class_id in self.moving_classes and confidence >= confidence_threshold:
+                            xyxy = box.xyxy[0].cpu().numpy().flatten()
                             
-                            # check this line once
-                            # This gives [x1, y1, x2, y2]
-                            # x1, y1, x2, y2 = box.xyxy.cpu().numpy()
-                            xyxy = box.xyxy.cpu().numpy().flatten()
-                            # print(f" YOLO bounding box check: {xyxy}, shape: {xyxy.shape}")
-                            
-                            if len(xyxy) == 4:
+                            if len(xyxy) >= 4:
                                 x1, y1, x2, y2 = xyxy[:4]
-                            
-                            if x2 > x1 and y2 > y1:
-                                detection.append({
-                                    'class_id': class_id,
-                                    'class_name': self.moving_classes[class_id],
-                                    'bbox': [float(x1), float(y1), float(x2), float(y2)],
-                                    'confidence': confidence,
-                                    'mask': None # mask will be generated by sam2 
-                                })
-                            else:
-                                print(f"Invalid bbox coordinates: x1={x1}, y1={y1}, x2={x2}, y2={y2}")
                                 
+                                if x2 > x1 and y2 > y1:
+                                    detections.append({
+                                        'class_id': class_id,
+                                        'class_name': self.moving_classes[class_id],
+                                        'bbox': [float(x1), float(y1), float(x2), float(y2)],
+                                        'confidence': confidence,
+                                        'mask': None,  # Will be filled by SAM2
+                                        'mask_area': None,  # Will store mask area instead of mask array
+                                        'mask_score': None
+                                    })
+                                    
                     except Exception as e:
-                        print(f"error in processing yolo code: {e}")
+                        print(f"Error in YOLO processing: {e}")
                         continue
         
-        if self.use_sam2 and detection:
-            detection = self.apply_sam2_segmentation(image, detection)
-                    
-        return detection
+        return detections
     
-    def apply_sam2_segmentation(self, image, detection):
+    def detect_and_segment_objects(self, image, confidence_threshold=0.3):
+        """Enhanced detection with SAM2 segmentation"""
+        detections = self.detect_2d_objects(image, confidence_threshold)
+        
+        if self.use_sam2 and self.sam2_predictor is not None and detections:
+            try:
+                detections = self.apply_sam2_segmentation(image, detections)
+            except Exception as sam2_error:
+                print(f"    ⚠️  SAM2 segmentation failed: {sam2_error}")
+        
+        return detections
+    
+    def apply_sam2_segmentation(self, image, detections):
+        """Apply SAM2 segmentation to YOLO detections"""
+        if self.sam2_predictor is None:
+            return detections
+        
         try:
-            # setting image in sam2 predicor
             self.sam2_predictor.set_image(image)
             
-            for i, detection in enumerate(detection):
+            for i, detection in enumerate(detections):
                 try:
                     bbox = detection['bbox']
                     x1, y1, x2, y2 = bbox
                     
-                    # bbox to sam2 format
                     input_box = np.array([x1, y1, x2, y2])
                     
                     masks, scores, logits = self.sam2_predictor.predict(
@@ -297,425 +274,404 @@ class CustomMultiSensorAnnotator:
                     )
                     
                     if len(masks) > 0:
-                        best_mask = masks[0] # Shape: (H, W)
-                        detection['mask'] = best_mask.astype(np.uint8)
+                        best_mask = masks[0].astype(np.uint8)
+                        
+                        # Store mask for processing but remove before JSON serialization
+                        detection['mask'] = best_mask
+                        detection['mask_area'] = int(np.sum(best_mask))  # JSON-serializable
                         detection['mask_score'] = float(scores[0]) if len(scores) > 0 else 0.0
-                        print(f" SAM2 mask generated for {detection['class_name']}: "
-                              f"{np.sum(best_mask)} pixels, score: {detection.get('mask_score', 0):.3f}")
-                    else:
-                        print(f" No mask generated for {detection['class_name']}")
-
+                        
+                        print(f"    ✅ SAM2 mask generated for {detection['class_name']}: "
+                              f"{detection['mask_area']} pixels, score: {detection['mask_score']:.3f}")
+                        
                 except Exception as mask_error:
-                    print(f" SAM2 error for detection {i}: {mask_error}")
+                    print(f"    ❌ SAM2 error for detection {i}: {mask_error}")
                     continue
-                
+            
         except Exception as e:
-            print(f" SAM2 segmentation failed: {e}")        
+            print(f"❌ SAM2 segmentation failed: {e}")
         
-        return detection
+        return detections
 
-    def create_frustum_from_detections(self, detection, intrinsics, depth_range=(0.5, 50.0)):
-        """create 3D frustum from detection"""
-        try:
-            if detection.get('mask') is not None and self.use_sam2:
-                return self.create_frustum_from_mask(detection['mask'], intrinsics, depth_range)
-        except Exception as e:
-            print(f"Error in creating frustum from detection: {e}")
-            return None
-        
-    def create_frustum_from_mask(self, mask, intrinsics, depth_range=(0.5, 50.0)):
-        y_indices, x_indices = np.where(mask>0)
-        if len(x_indices) == 0 and len(y_indices) == 0:
-            return np.array([])
-        
-        x1, x2 = float(x_indices.min(), float(x_indices.max()))
-        y1, y2 = float(y_indices.min(), float(y_indices.max()))
-        
-        return self.create_frustum_from_bbox([x1, y1, x2, y2], intrinsics, depth_range)
-        
-    def create_frustum_from_bbox(self, bbox, intrinsics, depth_range=(0.5, 50.0)):    
+    def create_frustum_from_bbox(self, bbox, intrinsics, depth_range=(0.5, 50.0)):
+        """Create 3D frustum from 2D bounding box"""
         x1, y1, x2, y2 = bbox
         fx, fy, cx, cy = intrinsics['fx'], intrinsics['fy'], intrinsics['cx'], intrinsics['cy']
-        near, far = depth_range
         
-        # creating frustum vertices in camera coordinates
-        # near plane coordinates
+        near, far = depth_range
         corners_2d = np.array([[x1, y1], [x2, y1], [x2, y2], [x1, y2]])
         
-        frustrum_points = []
-        
-        # need to understand this logic
+        frustum_points = []
         for depth in [near, far]:
             for corner in corners_2d:
                 x_norm = (corner[0] - cx) / fx
                 y_norm = (corner[1] - cy) / fy
                 point_3d = np.array([x_norm * depth, y_norm * depth, depth])
-                frustrum_points.append(point_3d)
+                frustum_points.append(point_3d)
                 
-        return np.array(frustrum_points)
-    
-    def filter_points_with_mask_projection(self, points, detection, intrinsics):
-        """filter points using the projected mask"""
-        if not self.use_sam2 or detection.get('mask') is None:
-            frustum = self.create_frustum_from_detections(detection, intrinsics)
-            return self.filter_points_in_frustum(points, frustum) 
-        
-        mask = detection['mask']
-        fx, fy, cx, cy = intrinsics['fx'], intrinsics['fy'], intrinsics['cx'], intrinsics['cy']
-        
-        # projecting 3D points to 2D image plane
-        valid_points_mask = points[:, 2] > 0 # points in front of the camera
-        valid_points = points[valid_points_mask]
-        
-        if len(valid_points) == 0:
-            return np.zeros(len(points), dtype=bool)
-        
-        # projecting to image coordinates
-        x_2d = (valid_points[:, 0] * fx / valid_points[:, 2]) + cx
-        y_2d = (valid_points[:, 1] * fy / valid_points[:, 2]) + cy
-        
-        # check bounds
-        heigth, width = mask.shape
-        in_image = (
-            (x_2d >= 0) & (x_2d < width) &
-            (y_2d >= 0) & (y_2d < heigth)
-        )
-        
-        # cehck mask values
-        mask_values = np.zeros(len(valid_points), dtype=bool)
-        if np.any(in_image):
-            valid_x = x_2d[in_image].astype(int)
-            valid_y = y_2d[in_image].astype(int)
-            
-            valid_x = np.clip(valid_x, 0, width - 1)
-            valid_y = np.clip(valid_y, 0, heigth - 1)
-            
-            mask_values[in_image] = mask[valid_y, valid_x]
-            
-        # mapping back to the original array
-        result_mask = np.zeros(len(points), dtype=bool)
-        result_mask[valid_points_mask] = mask_values
-        
-        return result_mask
+        return np.array(frustum_points)
     
     def filter_points_in_frustum(self, points, frustum_vertices):
-        """to fiter points that lie in the frustum"""
+        """Filter points that lie in the frustum"""
         if len(frustum_vertices) == 0:
             return np.zeros(len(points), dtype=bool)
-        
-        # get frustum bounding box
+            
         min_x, max_x = frustum_vertices[:, 0].min(), frustum_vertices[:, 0].max()
         min_y, max_y = frustum_vertices[:, 1].min(), frustum_vertices[:, 1].max()
         min_z, max_z = frustum_vertices[:, 2].min(), frustum_vertices[:, 2].max()
         
-        # filter points within a bounding box
-        # logic might be wrong need to check
         mask = (
             (points[:, 0] >= min_x) & (points[:, 0] <= max_x) &
             (points[:, 1] >= min_y) & (points[:, 1] <= max_y) &
             (points[:, 2] >= min_z) & (points[:, 2] <= max_z) &
-            (points[:, 2] > 0) # points infront of the camera        
+            (points[:, 2] > 0)
         )
         
         return mask 
     
     def annotate_frame(self, frame_data):
-        "annotating a single frame"
+        """Annotating a single frame - FIXED VERSION"""
         frame_id = frame_data.get('frame_id', 'unknown')
         timestamp = frame_data.get('timestamp', 0)
         
+        print(f"🎯 Annotating Frame {frame_id} (timestamp: {timestamp})")
+        
         # Validate required fields
         if 'lidar' not in frame_data or frame_data['lidar'] is None:
-            print(f" Frame {frame_id}: Missing lidar file")
+            print(f"❌ Frame {frame_id}: Missing lidar file")
             return None
         
         lidar_file = frame_data['lidar']
         
         if not os.path.exists(lidar_file):
-            print(f" Frame {frame_id}: Lidar file does not exist: {lidar_file}")
+            print(f"❌ Frame {frame_id}: Lidar file does not exist: {lidar_file}")
             return None
         
         try:
-            pcd = o3d.io.read_point_cloud(frame_data['lidar'])
+            pcd = o3d.io.read_point_cloud(lidar_file)
             points = np.asarray(pcd.points)
             
             if len(points) == 0:
-                print(f"Warning: Empty point cloud for frame {frame_id}")
+                print(f"⚠️  Frame {frame_id}: Empty point cloud")
                 return None
-        
-        except Exception as e:
-            print(f" Frame {frame_id}: Error loading point cloud: {e}")
-            return None
+                
+            print(f"✅ Frame {frame_id}: Loaded {len(points)} points")
             
-        # labels intitialization (0 = static, 1 = moving)
+        except Exception as e:
+            print(f"❌ Frame {frame_id}: Error loading point cloud: {e}")
+            return None
+        
+        # Initialize labels (0 = static, 1 = moving)
         labels = np.zeros(len(points), dtype=np.int32)
+        all_detections = []
         
-        all_detection = []
+        # Process Camera 1 if available
+        camera1_available = (
+            frame_data.get('has_camera1', False) and 
+            frame_data.get('camera1_image') and 
+            frame_data.get('camera1_intrinsic')
+        )
         
-        # process camera1 if available 
-        if frame_data['has_camera1'] and frame_data['camera1_intrinsic']:
-            try:
-                img1 = cv2.imread(frame_data['camera1_image'])
-                intrinsics1 = self.load_intrinsics(frame_data['camera1_intrinsic'])
-                if img1 is not None and intrinsics1 is not None:
-                    # print(f"Loaded intrinsics: fx={intrinsics1['fx']:.1f}, fy={intrinsics1['fy']:.1f}")
-                    detection1 = self.detect_and_segment_objects(img1)
-                    print(f" Found {len(detection1)} detections")
+        if camera1_available:
+            camera1_image_path = frame_data.get('camera1_image')
+            camera1_intrinsics_path = frame_data.get('camera1_intrinsic')
+            
+            print(f"  📸 Processing Camera1...")
+            
+            if os.path.exists(camera1_image_path) and os.path.exists(camera1_intrinsics_path):
+                try:
+                    img1 = cv2.imread(camera1_image_path)
+                    intrinsics1 = self.load_intrinsics(camera1_intrinsics_path)
                     
-                    for det in detection1:
-                        det['camera'] = 'camera1'
-                        det['image_file'] = frame_data['camera1_image']
-                    
-                    all_detection.extend(detection1)
-                    
-                    for detection in detection1:
-                        if self.use_sam2:
-                            mask = self.filter_points_with_mask_projection(points, detection, intrinsics1)
-                        else:
+                    if img1 is not None and intrinsics1 is not None:
+                        print(f"     ✅ Loaded image and intrinsics")
+                        
+                        # Enhanced detection
+                        detections1 = self.detect_and_segment_objects(img1)
+                        print(f"     📊 Found {len(detections1)} moving object detections")
+                        
+                        for det in detections1:
+                            det['camera'] = 'camera1'
+                            det['image_file'] = camera1_image_path
+                        
+                        all_detections.extend(detections1)
+                        
+                        # Apply point filtering
+                        for detection in detections1:
                             frustum = self.create_frustum_from_bbox(detection['bbox'], intrinsics1)
                             mask = self.filter_points_in_frustum(points, frustum)
-                        points_labeled = np.sum(mask)
-                        labels[mask] = 1 # marking moving obstacles
-                        print(f"{detection['class_name']}: labeled {points_labeled} points")
+                            points_labeled = np.sum(mask)
+                            labels[mask] = 1
+                            print(f"     ✅ {detection['class_name']}: labeled {points_labeled} points")
+                    else:
+                        print(f"     ❌ Failed to load image or intrinsics")
                         
-            except Exception as e:
-                print(f"Error processing camera1 for frame {frame_id}: {e}")
+                except Exception as e:
+                    print(f"❌ Error processing camera1 for frame {frame_id}: {e}")
+                    traceback.print_exc()
+            else:
+                print(f"     ❌ Camera1 files not found")
+        else:
+            print(f"  ⏭️  Camera1 not available for this frame")
         
-        # process camera2 if available 
-        if frame_data['has_camera2'] and frame_data['camera2_intrinsic']:
-            try:
-                img2 = cv2.imread(frame_data['camera2_image'])
-                intrinsics2 = self.load_intrinsics(frame_data['camera2_intrinsic'])
-                if img2 is not None and intrinsics2 is not None:
-                    detection2 = self.detect_and_segment_objects(img2)
+        # Process Camera 2 if available
+        camera2_available = (
+            frame_data.get('has_camera2', False) and 
+            frame_data.get('camera2_image') and 
+            frame_data.get('camera2_intrinsic')
+        )
+        
+        if camera2_available:
+            camera2_image_path = frame_data.get('camera2_image')
+            camera2_intrinsics_path = frame_data.get('camera2_intrinsic')
+            
+            print(f"  📸 Processing Camera2...")
+            
+            if os.path.exists(camera2_image_path) and os.path.exists(camera2_intrinsics_path):
+                try:
+                    img2 = cv2.imread(camera2_image_path)
+                    intrinsics2 = self.load_intrinsics(camera2_intrinsics_path)
                     
-                    for det in detection2:
-                        det['camera'] = 'camera2'
-                        det['image_file'] = frame_data['camera2_image']
+                    if img2 is not None and intrinsics2 is not None:
+                        print(f"     ✅ Loaded image and intrinsics")
                         
-                    all_detection.extend(detection2)
-                    
-                    for detection in detection2:
-                        if self.use_sam2:
-                                mask = self.filter_points_with_mask_projection(points, detection, intrinsics2)
-                        else:
+                        detections2 = self.detect_and_segment_objects(img2)
+                        print(f"     📊 Found {len(detections2)} moving object detections")
+                        
+                        for det in detections2:
+                            det['camera'] = 'camera2'
+                            det['image_file'] = camera2_image_path
+                            
+                        all_detections.extend(detections2)
+                        
+                        for detection in detections2:
                             frustum = self.create_frustum_from_bbox(detection['bbox'], intrinsics2)
                             mask = self.filter_points_in_frustum(points, frustum)
-                        points_labeled = np.sum(mask)
-                        labels[mask] = 1 # marking moving obstacles
-                        print(f"{detection['class_name']}: labeled {points_labeled} points")
+                            points_labeled = np.sum(mask)
+                            labels[mask] = 1
+                            print(f"     ✅ {detection['class_name']}: labeled {points_labeled} points")
+                    else:
+                        print(f"     ❌ Failed to load image or intrinsics")
                         
-            except Exception as e:
-                print(f"Error processing camera2 for frame {frame_id}: {e}")
-                
-        # create annotation data
+                except Exception as e:
+                    print(f"❌ Error processing camera2 for frame {frame_id}: {e}")
+                    traceback.print_exc()
+            else:
+                print(f"     ❌ Camera2 files not found")
+        else:
+            print(f"  ⏭️  Camera2 not available for this frame")
+        
+        print(f"🏁 Frame {frame_id} Summary:")
+        print(f"   Total detections: {len(all_detections)}")
+        print(f"   Moving points labeled: {np.sum(labels == 1)}")
+        print(f"   Static points: {np.sum(labels == 0)}")
+        
+        # Save labels
+        label_file = self.output_dir / "labels" / f"{timestamp:019d}.label"
+        labels.astype(np.uint32).tofile(str(label_file))
+        print(f"  💾 Saved labels: {label_file}")
+        
+        # Create visualizations BEFORE removing masks
+        self.create_visualization(points, labels, frame_data, all_detections, timestamp)
+        
+        # Remove numpy arrays before JSON serialization
+        json_safe_detections = []
+        for det in all_detections:
+            json_det = det.copy()
+            # Remove the numpy mask but keep mask_area and mask_score
+            if 'mask' in json_det:
+                del json_det['mask']
+            json_safe_detections.append(json_det)
+        
+        # Create annotation data
         annotation_data = {
             'frame_id': frame_id,
             'timestamp': timestamp,
             'lidar_file': frame_data['lidar'],
             'camera1_image': frame_data.get('camera1_image'),
             'camera2_image': frame_data.get('camera2_image'),
-            'detections_2d': all_detection,
+            'detections_2d': json_safe_detections,  # JSON-safe version
             'num_points': len(points),
             'moving_points': int(np.sum(labels == 1)),
             'static_points': int(np.sum(labels == 0)),
             'moving_ratio': float(np.sum(labels == 1) / len(points)) if len(points) > 0 else 0.0,
-            'sam2_enabled': self.use_sam2
+            'sam2_enabled': self.use_sam2,
+            'sam2_working': self.sam2_predictor is not None
         }
         
-        # Save labels in binary format (compatible with SemanticKITTI)
-        label_file = self.output_dir / "labels" / f"{timestamp:019d}.label"
-        labels.astype(np.uint32).tofile(label_file)
-        
-        self.create_visualization(points, labels, frame_data, all_detection)
         return annotation_data
     
-    def create_visualization(self, points, labels, frame_data, detections):
-        frame_id = frame_data['frame_id']
-        timestamp = frame_data['timestamp']
+    def create_visualization(self, points, labels, frame_data, detections, timestamp):
+        """Create all visualizations including SAM2 masks"""
         
+        # 1. Save labeled point cloud
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(points)
         
-        # static grey colour , moving as red colour 
-        colours = np.zeros((len(points), 3))
-        colours[labels == 0] = [0.7,0.7,0.7]
-        colours[labels == 1] = [1.0,0.0,0.0]
+        colors = np.zeros((len(points), 3))
+        colors[labels == 0] = [0.7, 0.7, 0.7]  # Static - gray
+        colors[labels == 1] = [1.0, 0.0, 0.0]  # Moving - red
         
-        # need to understand this portion
-        pcd.colors = o3d.utility.Vector3dVector(colours)
+        pcd.colors = o3d.utility.Vector3dVector(colors)
         
         viz_file = self.output_dir / "visualization" / f"{timestamp:019d}_labeled.pcd"
-        saved_pcd = o3d.io.write_point_cloud(str(viz_file), pcd)
-        if saved_pcd:
-            print(f"Saved visualization file {saved_pcd}")
-        else:
-            print("failed to save visualization file")
-            
-        self.create_camera_visualization(frame_data, detections, timestamp)
+        success = o3d.io.write_point_cloud(str(viz_file), pcd)
+        if success:
+            print(f"  💾 Saved point cloud visualization: {viz_file.name}")
+        
+        # 2. Create camera visualizations with detections
+        for camera_name in ['camera1', 'camera2']:
+            self.create_camera_visualization(frame_data, detections, timestamp, camera_name)
+        
+        # 3. Save SAM2 masks separately
         if self.use_sam2:
             self.save_sam2_masks(detections, timestamp)
-            
-    def save_sam2_masks(self, detections, timestamp):
+    
+    def create_camera_visualization(self, frame_data, detections, timestamp, camera_name):
+        """Create visualization for a single camera"""
+        image_key = f'{camera_name}_image'
+        if not (frame_data.get(image_key) and os.path.exists(frame_data[image_key])):
+            return
+        
         try:
-            masks_dir = self.output_dir / "segementation_masks"
-            for camera_name in ['camera1', 'camera2']:
-                camera_detections = [d for d in detections if d.get('camera') == camera_name]
-                if camera_detections:
-                    first_det = camera_detections[0]
-                    if first_det.get('mask') is not None:
-                        h, w  = first_det['mask'].shape
-                        combined_mask = np.zeros((h, w, 3), dtype=np.uint8)
-                        colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255)]
-                        
-                        for i, det in enumerate(camera_detections):
-                            if det.get('mask') is not None:
-                                color = colors[i % len(colors)]
-                                mask = det['mask']
-                                for c in range(3):
-                                    combined_mask[:, :, c][mask > 0] = color[c]
-                                    
-                        # save combined mask
-                        mask_file = masks_dir / f"{timestamp:019d}_{camera_name}_masks.png"
-                        cv2.imwrite(str(mask_file), combined_mask)
-                        print(f"  💾 Saved SAM2 masks: {mask_file.name}") 
-                        
-        except Exception as e:
-            print(f"Error saving SAM2 masks: {e}")
-        
-    def create_camera_visualization(self, frame_data, detections, timestamp):
-        camera1_viz_dir = self.output_dir / "visualization_camera_1"
-        camera2_viz_dir = self.output_dir / "visualization_camera_2"
-        
-        mkdir_parent_directory(camera1_viz_dir)
-        mkdir_parent_directory(camera1_viz_dir)
-        
-        # process Camera 1
-        if frame_data.get('has_camera1') and frame_data.get('camera1_image'):
-            camera1_image = frame_data['camera1_image']
-            if os.path.exists(camera1_image):
-                # camera1_detections = [d for d in detections if d.get('camera') == 'camera1']
-                self.process_single_camera_visualization(
-                    camera_name='camera1',
-                    image_file=frame_data['camera1_image'],
-                    detections=detections,
-                    timestamp=timestamp,
-                    output_dir=camera1_viz_dir
-            )
-            else:
-                print(f" Camera1 image not found: {camera1_image}")
-        
-        # Process Camera 2
-        if frame_data.get('has_camera2') and frame_data.get('camera2_image'):
-            camera2_image = frame_data['camera2_image']
-            if os.path.exists(camera2_image):
-                # camera2_detections = [d for d in detections if d.get('camera') == 'camera2']
-                self.process_single_camera_visualization(
-                    camera_name='camera2',
-                    image_file=frame_data['camera2_image'],
-                    detections=detections,
-                    timestamp=timestamp,
-                    output_dir=camera2_viz_dir
-                )
-            else:
-                print(f" Camera2 image not found: {camera2_image}")
-            
-    def process_single_camera_visualization(self, camera_name, image_file, detections, timestamp, output_dir):
-        try:
-            # Check if image file exists
-            if not os.path.exists(image_file):
-                print(f" Image file not found: {os.path.basename(image_file)}")
-                return
-            
-            # Load image
-            img = cv2.imread(image_file)
+            img = cv2.imread(frame_data[image_key])
             if img is None:
-                print(f" Failed to load image: {os.path.basename(image_file)}")
                 return
             
             camera_detections = [d for d in detections if d.get('camera') == camera_name]
             
-            print(f" Processing {camera_name}: {len(camera_detections)} detections")
+            # Color mapping for different classes
+            color_map = {
+                'person': (0, 255, 0),        # Green
+                'bicycle': (0, 255, 255),     # Yellow
+                'car': (255, 0, 0),           # Blue
+                'motorcycle': (255, 0, 255), # Magenta
+                'bus': (0, 165, 255),         # Orange
+                'truck': (128, 0, 128),       # Purple
+            }
+            
+            # Create mask overlay
+            mask_overlay = np.zeros_like(img, dtype=np.uint8)
+            
             # Draw detections
-            for i, det in enumerate(camera_detections):
-                try:
-                    bbox = det['bbox']
-                    x1, y1, x2, y2 = map(int, bbox)
-                    confidence = det['confidence']
-                    class_name = det['class_name']
-                    
-                    # Color mapping for different classes
-                    color_map = {
-                        'person': (0, 255, 0),        # Green
-                        'car': (255, 0, 0),           # Blue
-                        'bicycle': (0, 255, 255),     # Yellow
-                        'motorcycle': (255, 0, 255), # Magenta
-                        'bus': (0, 165, 255),         # Orange
-                        'truck': (128, 0, 128),       # Purple
-                        'bird': (255, 255, 0),        # Cyan
-                        'cat': (255, 192, 203),       # Pink
-                        'dog': (165, 42, 42)          # Brown
-                    }
-                    
-                    color = color_map.get(class_name, (0, 255, 0))  # Default green
-                    
-                    # Draw bounding box with thicker lines
-                    cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
-                    
-                    # Prepare label text
-                    label = f"{class_name}: {confidence:.2f}"
-                    
-                    # Get text size for background
-                    font = cv2.FONT_HERSHEY_SIMPLEX
-                    font_scale = 0.7
-                    thickness = 2
-                    (text_width, text_height), _ = cv2.getTextSize(label, font, font_scale, thickness)
-                    
-                    # Draw label background
-                    label_bg_start = (x1, y1 - text_height - 10)
-                    label_bg_end = (x1 + text_width + 10, y1)
-                    cv2.rectangle(img, label_bg_start, label_bg_end, color, -1)
-                    
-                    # Draw label text
-                    cv2.putText(img, label, (x1 + 5, y1 - 5), font, font_scale, (255, 255, 255), thickness)
-                    
-                    print(f"Drew detection {i+1}: {class_name} at [{x1}, {y1}, {x2}, {y2}] conf:{confidence:.2f}")
-                    
-                except Exception as draw_error:
-                    print(f" Error drawing detection {i+1}: {draw_error}")
-                    continue
+            for det in camera_detections:
+                bbox = det['bbox']
+                x1, y1, x2, y2 = map(int, bbox)
+                class_name = det['class_name']
+                confidence = det['confidence']
+                color = color_map.get(class_name, (0, 255, 0))
+                
+                # Draw bounding box
+                cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
+                
+                # Draw SAM2 mask overlay if available
+                if self.use_sam2 and det.get('mask') is not None:
+                    mask = det['mask']
+                    colored_mask = np.zeros_like(img, dtype=np.uint8)
+                    colored_mask[mask > 0] = color
+                    mask_overlay = cv2.addWeighted(mask_overlay, 1.0, colored_mask, 0.4, 0)
+                
+                # Draw label
+                label_parts = [f"{class_name}: {confidence:.2f}"]
+                if det.get('mask_score') is not None:
+                    label_parts.append(f"mask: {det['mask_score']:.2f}")
+                label = " | ".join(label_parts)
+                
+                # Label background and text
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                font_scale = 0.7
+                thickness = 2
+                (text_width, text_height), _ = cv2.getTextSize(label, font, font_scale, thickness)
+                
+                cv2.rectangle(img, (x1, y1 - text_height - 10), (x1 + text_width + 10, y1), color, -1)
+                cv2.putText(img, label, (x1 + 5, y1 - 5), font, font_scale, (255, 255, 255), thickness)
             
-            # Add frame information overlay
-            info_text = f"Frame: {timestamp} | Camera: {camera_name.upper()} | Detections: {len(camera_detections)}"
+            # Blend mask overlay with image
+            if self.use_sam2:
+                img = cv2.addWeighted(img, 0.7, mask_overlay, 0.3, 0)
+            
+            # Add info text
+            info_parts = [f"Frame: {timestamp}", f"{camera_name.upper()}", f"Detections: {len(camera_detections)}"]
+            if self.use_sam2:
+                masks_count = sum(1 for d in camera_detections if d.get('mask') is not None)
+                info_parts.append(f"SAM2 Masks: {masks_count}")
+            
+            info_text = " | ".join(info_parts)
             cv2.putText(img, info_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+            cv2.putText(img, info_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1)
             
-            # Add border around image if there are detections
+            # Add border if detections found
             if camera_detections:
-                cv2.rectangle(img, (0, 0), (img.shape[1]-1, img.shape[0]-1), (0, 255, 0), 5)
+                border_color = (0, 255, 255) if self.use_sam2 else (0, 255, 0)
+                cv2.rectangle(img, (0, 0), (img.shape[1]-1, img.shape[0]-1), border_color, 5)
             
-            # Save visualization as .png
-            viz_filename = f"{timestamp:019d}.png"
-            viz_file = output_dir / viz_filename
-            
+            # Save visualization
+            output_dir = self.output_dir / f"visualization_{camera_name}"
+            mkdir_parent_directory(output_dir)
+            viz_file = output_dir / f"{timestamp:019d}.png"
             success = cv2.imwrite(str(viz_file), img)
             
             if success:
-                print(f" Saved {camera_name} visualization: {viz_filename}")
+                print(f"  💾 Saved {camera_name} visualization: {viz_file.name}")
             else:
-                print(f"Failed to save {camera_name} visualization: {viz_filename}")
+                print(f"  ❌ Failed to save {camera_name} visualization: {viz_file.name}")
+            
+        except Exception as e:
+            print(f"  ❌ Error creating {camera_name} visualization: {e}")
+    
+    def save_sam2_masks(self, detections, timestamp):
+        """Save SAM2 segmentation masks for each camera separately"""
+        try:
+            for camera_name in ['camera1', 'camera2']:
+                camera_detections = [d for d in detections if d.get('camera') == camera_name]
+                detections_with_masks = [d for d in camera_detections if d.get('mask') is not None]
                 
-        except Exception as camera_error:
-            print(f" Error processing {camera_name} visualization: {camera_error}")
+                if detections_with_masks:
+                    print(f"  💾 Saving SAM2 masks for {camera_name}: {len(detections_with_masks)} masks")
+                    
+                    # Get image dimensions from first mask
+                    first_det = detections_with_masks[0]
+                    h, w = first_det['mask'].shape
+                    
+                    # Create combined mask image
+                    combined_mask = np.zeros((h, w, 3), dtype=np.uint8)
+                    colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), 
+                             (255, 0, 255), (0, 255, 255), (128, 255, 0), (255, 128, 0)]
+                    
+                    # Save individual masks and create combined mask
+                    for i, det in enumerate(detections_with_masks):
+                        if det.get('mask') is not None:
+                            mask = det['mask']
+                            color = colors[i % len(colors)]
+                            class_name = det['class_name']
+                            confidence = det['confidence']
+                            
+                            # Save individual mask
+                            individual_mask = mask * 255  # Convert to 0-255 range
+                            mask_dir = self.output_dir / "segmentation_masks" / camera_name
+                            individual_file = mask_dir / f"{timestamp:019d}_{i:02d}_{class_name}_{confidence:.2f}.png"
+                            cv2.imwrite(str(individual_file), individual_mask)
+                            
+                            # Add to combined mask with unique color
+                            for c in range(3):
+                                combined_mask[:, :, c][mask > 0] = color[c]
+                    
+                    # Save combined mask
+                    combined_file = self.output_dir / "segmentation_masks" / f"{timestamp:019d}_{camera_name}_combined.png"
+                    cv2.imwrite(str(combined_file), combined_mask)
+                    
+                    print(f"    ✅ Saved individual and combined masks for {camera_name}")
+                        
+        except Exception as e:
+            print(f"❌ Error saving SAM2 masks: {e}")
             traceback.print_exc()
                 
     def process_all_frames(self, max_frames=None):
-        # if max_frames:
-        #     frames_to_process = self.sync_map[:max_frames]
-        # else:
-        #     frames_to_process = self.sync_map
+        """Process frames with proper error handling"""
         frames_to_process = self.sync_map[:max_frames] if max_frames else self.sync_map
-            
-        print(f"Processing {len(frames_to_process)} frames...")
+        
+        print(f"🚀 Processing {len(frames_to_process)} frames...")
+        print(f"   SAM2 enabled: {self.use_sam2}")
         
         for frame_data in tqdm(frames_to_process, desc="Annotating frames"):
             try:
@@ -723,20 +679,49 @@ class CustomMultiSensorAnnotator:
                 if annotation_data:
                     self.annotation.append(annotation_data)
             except Exception as e:
-                print(f" Error processing frame {frame_data['frame_id']}: {e}")
+                print(f"❌ Error processing frame {frame_data.get('frame_id', 'unknown')}: {e}")
+                traceback.print_exc()
                 continue
-            
+        
         self.save_annotation_summary()
         self.print_statistics()
         
     def save_annotation_summary(self):
+        """Save annotation summary - JSON safe version"""
         summary_file = self.output_dir / "annotation_summary.json"
-        with open(summary_file, 'w') as f:
-            json.dump(self.annotation, f, indent=2)
-            
-        print(f"Annotation summary saved to: {summary_file}")
+        
+        try:
+            with open(str(summary_file), 'w') as f:
+                json.dump(self.annotation, f, indent=2)
+            print(f"📄 Annotation summary saved to: {summary_file}")
+        except Exception as e:
+            print(f"❌ Error saving JSON summary: {e}")
+            # Try to save a simplified version
+            try:
+                simplified_annotations = []
+                for ann in self.annotation:
+                    simplified_ann = {
+                        'frame_id': ann['frame_id'],
+                        'timestamp': ann['timestamp'],
+                        'num_points': ann['num_points'],
+                        'moving_points': ann['moving_points'],
+                        'static_points': ann['static_points'],
+                        'moving_ratio': ann['moving_ratio'],
+                        'num_detections': len(ann['detections_2d']),
+                        'sam2_enabled': ann['sam2_enabled']
+                    }
+                    simplified_annotations.append(simplified_ann)
+                
+                simplified_file = self.output_dir / "annotation_summary_simplified.json"
+                with open(str(simplified_file), 'w') as f:
+                    json.dump(simplified_annotations, f, indent=2)
+                print(f"📄 Simplified annotation summary saved to: {simplified_file}")
+                
+            except Exception as e2:
+                print(f"❌ Failed to save even simplified summary: {e2}")
         
     def print_statistics(self):
+        """Print comprehensive statistics"""
         if not self.annotation:
             print("No annotations generated")
             return
@@ -744,11 +729,10 @@ class CustomMultiSensorAnnotator:
         total_points = sum(ann['num_points'] for ann in self.annotation)
         total_moving = sum(ann['moving_points'] for ann in self.annotation)
         total_static = sum(ann['static_points'] for ann in self.annotation)
-        
         total_detections = sum(len(ann['detections_2d']) for ann in self.annotation)
         frames_with_detections = sum(1 for ann in self.annotation if ann['detections_2d'])
         
-        print(f"\n Annotation Statistics:")
+        print(f"\n📊 Annotation Statistics:")
         print(f"   Total frames processed: {len(self.annotation)}")
         print(f"   Frames with detections: {frames_with_detections}")
         print(f"   Total 2D detections: {total_detections}")
@@ -756,25 +740,39 @@ class CustomMultiSensorAnnotator:
         print(f"   Moving points: {total_moving:,} ({total_moving/total_points*100:.1f}%)")
         print(f"   Static points: {total_static:,} ({total_static/total_points*100:.1f}%)")
         
-        # average moving ratio
-        avg_moving_ratio = np.mean([ann['moving_ratio'] for ann in self.annotation])
-        print(f"   Average moving ratio: {avg_moving_ratio*100:.1f}%")
-        
+        if self.annotation:
+            avg_moving_ratio = np.mean([ann['moving_ratio'] for ann in self.annotation])
+            print(f"   Average moving ratio: {avg_moving_ratio*100:.1f}%")
+            
+            sam2_working = sum(1 for ann in self.annotation if ann.get('sam2_working', False))
+            print(f"   SAM2 working frames: {sam2_working}/{len(self.annotation)}")
+            
+            if self.use_sam2:
+                total_masks = 0
+                for ann in self.annotation:
+                    for det in ann['detections_2d']:
+                        if det.get('mask_area', 0) > 0:
+                            total_masks += 1
+                print(f"   Total SAM2 masks generated: {total_masks}")
+
 def main():
-    parser = argparse.ArgumentParser(description= "Custom multi-sensor annotator")
+    parser = argparse.ArgumentParser(description="Fixed multi-sensor annotator")
     parser.add_argument("sync_map", help="Path to synchronization map JSON file")
-    parser.add_argument("--output", "-o", default="annotations", help="Output directory")
+    parser.add_argument("--output", "-o", default="fixed_annotations", help="Output directory")
     parser.add_argument("--max_frames", "-n", type=int, help="Maximum frames to process")
-    # parser.add_argument("--disable_sam2", action="store_true", help="Disable SAM2 segmentation")
+    parser.add_argument("--disable_sam2", action="store_true", help="Disable SAM2 segmentation")
     parser.add_argument("--sam2_model", choices=['tiny', 'small', 'base', 'large'], 
-                        default='large', help="SAM2 model size")
+                        default='small', help="SAM2 model size")
+    
     args = parser.parse_args()
-    annotator = CustomMultiSensorAnnotator(args.sync_map, 
-                                           args.output, 
-                                        #    use_sam2=not 
-                                        #    args.disable_sam2, 
-                                           sam2_model_size=args.sam2_model)
+    
+    annotator = FixedMultiSensorAnnotator(
+        args.sync_map, 
+        args.output, 
+        use_sam2=not args.disable_sam2,
+        sam2_model_size=args.sam2_model
+    )
     annotator.process_all_frames(max_frames=args.max_frames)
-        
+
 if __name__ == "__main__":
     main()

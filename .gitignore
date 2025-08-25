@@ -1,3 +1,4 @@
 *.json
 *.pt
 /bag_annotation
+/annotation_sam2

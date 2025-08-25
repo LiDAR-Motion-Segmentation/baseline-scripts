@@ -401,7 +401,7 @@ class CustomMultiSensorAnnotator:
                 cv2.rectangle(img, (0, 0), (img.shape[1]-1, img.shape[0]-1), (0, 255, 0), 5)
             
             # Save visualization as .png
-            viz_filename = f"{timestamp:019d}_{camera_name}.png"
+            viz_filename = f"{timestamp:019d}.png"
             viz_file = output_dir / viz_filename
             
             success = cv2.imwrite(str(viz_file), img)
