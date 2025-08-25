@@ -139,7 +139,10 @@ pip install git+https://github.com/facebookresearch/segment-anything-2.git
 python3 rosbag_processing_script/enhanced_annotater.py my_bag_sync_map.json --output annotation_sam2
 
 # Step 3: Convert to KITTI
-python convert_to_kitti.py my_bag_annotations --output my_kitti_dataset
+python rosbag_processing_script/convert_to_kitti.py my_bag_annotations --output my_kitti_dataset
+
+# point cloud visualization script using rerun
+python3 rosbag_processing_script/rerun_pcd_replay.py <folder with point cloud path>
 ```
 
 Custom Data structure after running the code above with YOLO
