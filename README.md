@@ -1,5 +1,6 @@
 # baseline-scripts for temporal-point-transformer
-Extra utility codes used to run baselines smoothly, for JRDB dataset and semantic kitty dataset. 
+1) Extra utility codes for adapting `Motion Object Segmentation Algoritms` for JRDB dataset and semantic kitty dataset. 
+2) Custom Data Annotation pipeline in `Semantic Kitty` format for converting an rosbag into annotated data for `Motion Object Segmentation Algoritms` using YOLOv8 + SAM2.
 
 ## semantic kitty scripts
 - the files are placed in `training_script_semantic_kitty` directory
