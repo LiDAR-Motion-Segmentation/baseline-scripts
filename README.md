@@ -170,8 +170,46 @@ annotations_YOLO_SAM2/
 │   └── TIMESTAMP_camera2_combined.png
 ├── annotation_summary.json         # Complete summary (JSON-safe)
 └── annotation_summary_simplified.json  # Fallback if main JSON fails
-
 ```
+![alt text](./assets/1754391093832000823.png)
+
+## How Moving vs. Static Labels Are Assigned ?
+- In the pipeline, each 3D LiDAR point is ultimately labeled moving (1) or static (0) based on whether it falls within a 3D “frustum” or projected SAM2 mask of any detected object class deemed “moving.” and detect 2D Objects in the Image
+
+- We run YOLOv8 on each camera image.
+
+- We keep only detections whose class ID is in our moving_classes set:
+  `{ person, bicycle, car, motorcycle, bus, truck, bird, cat, dog }`.
+
+- Each detection yields a 2D bounding box `[x1, y1, x2, y2]` and (optionally) a SAM2 mask.
+
+### Optionally Refine with SAM2
+
+- If SAM2 is enabled and initialized, we pass each bounding box to SAM2 to get a pixel-precise mask.
+
+- We store each mask (as a binary array) and its mask_area (pixel count) in the detection.
+
+### Create a 3D Frustum or Mask Projection
+
+- Bounding-box frustum: We take the 4 corners of the 2D box, back-project them using the camera intrinsics into two planes at near/far depths. These eight 3D points define a truncated pyramid (“frustum”).
+
+- Mask-based projection (optional): If a SAM2 mask exists, we project each LiDAR point into the camera image plane. We then test whether that 2D projection falls inside the mask. This method tends to be more accurate than the frustum.
+
+### Label Points Moving vs. Static
+
+- We initialize a label array `labels = np.zeros(num_points)`.
+
+- For each detection:
+
+1) If using the mask, we `compute mask_indices = filter_points_with_mask_projection(points, detection, intrinsics)`
+
+2) Otherwise, we compute `mask_indices = filter_points_in_frustum(points, frustum_vertices)`.
+
+3) All points where `mask_indices == True` are set to 1 (moving).
+
+### Save Labels
+
+The final labels array `(0 = static, 1 = moving)` is written out in the same binary format as SemanticKITTI: one uint32 per point.
 
 ## Acknowledgment
 - I have used [temporal-point-transformer](https://github.com/LiDAR-Motion-Segmentation/temporal-point-transformer) model to train and evaluate on.
