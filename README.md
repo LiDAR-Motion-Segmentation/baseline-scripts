@@ -128,15 +128,20 @@ DATAROOT
 # Step 1: Analyze data
 python custom_analyzer.py /path/to/DATAROOT/my_bag
 
-# Step 2: Generate annotations  
+# Step 2: Generate annotations (with YOLOv8 only)
 pip install ultralytics
-python rosbag_custom_annotator.py my_bag_sync_map.json --output my_bag_annotations
+python rosbag_processing_script/rosbag_custom_annotator.py my_bag_sync_map.json --output my_bag_annotations
+
+OR
+# Step 2: Generate annotations (with YOLOv8 + SAM2 )
+pip install git+https://github.com/facebookresearch/segment-anything-2.git
+python3 rosbag_processing_script/enhanced_annotater.py my_bag_sync_map.json --output annotation_sam2
 
 # Step 3: Convert to KITTI
 python convert_to_kitti.py my_bag_annotations --output my_kitti_dataset
 ```
 
-Custom Data structure after running the code above
+Custom Data structure after running the code above with YOLO
 ```
 output_directory/
 ├── labels/                    # .label files
@@ -151,6 +156,33 @@ output_directory/
 │   └── ...
 └── annotation_summary.json
 ```
+Custom Data structure after running the code with YOLO+SAM2
+```
+annotations_YOLO_SAM2/
+├── labels/                          # .label files for point cloud labels
+├── visualization/                   # Labeled point clouds (.pcd)
+├── visualization_camera_1/          # Camera 1 with bounding boxes + mask overlays
+├── visualization_camera_2/          # Camera 2 with bounding boxes + mask overlays
+├── segmentation_masks/
+│   ├── camera1/                     # Individual SAM2 masks for camera1
+│   ├── camera2/                     # Individual SAM2 masks for camera2
+│   ├── TIMESTAMP_camera1_combined.png
+│   └── TIMESTAMP_camera2_combined.png
+├── annotation_summary.json         # Complete summary (JSON-safe)
+└── annotation_summary_simplified.json  # Fallback if main JSON fails
+
+```
 
 ## Acknowledgment
 - I have used [temporal-point-transformer](https://github.com/LiDAR-Motion-Segmentation/temporal-point-transformer) model to train and evaluate on.
+
+## Citation
+```
+@article{ravi2024sam2,
+  title={SAM 2: Segment Anything in Images and Videos},
+  author={Ravi, Nikhila and Gabeur, Valentin and Hu, Yuan-Ting and Hu, Ronghang and Ryali, Chaitanya and Ma, Tengyu and Khedr, Haitham and R{\"a}dle, Roman and Rolland, Chloe and Gustafson, Laura and Mintun, Eric and Pan, Junting and Alwala, Kalyan Vasudev and Carion, Nicolas and Wu, Chao-Yuan and Girshick, Ross and Doll{\'a}r, Piotr and Feichtenhofer, Christoph},
+  journal={arXiv preprint arXiv:2408.00714},
+  url={https://arxiv.org/abs/2408.00714},
+  year={2024}
+}
+```
