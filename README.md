@@ -142,6 +142,8 @@ python3 rosbag_processing_script/enhanced_annotater.py my_bag_sync_map.json --ou
 python rosbag_processing_script/convert_to_kitti.py my_bag_annotations --output my_kitti_dataset
 
 # point cloud visualization script using rerun
+pip install rerun-sdk 
+rerun --serve & disown
 python3 rosbag_processing_script/rerun_pcd_replay.py <folder with point cloud path>
 ```
 

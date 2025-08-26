@@ -276,6 +276,7 @@ def process_and_save_lidar(lidar_data, lidar_type, lidar_dir, timestamp):
 
     valid = ~np.isnan(points).any(axis=1)
     points = points[valid]
+    points[:, 2] = -points[:, 2]
 
     pcd = o3d.geometry.PointCloud()
     pcd.points = o3d.utility.Vector3dVector(points)
