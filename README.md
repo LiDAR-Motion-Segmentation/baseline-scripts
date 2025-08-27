@@ -144,7 +144,7 @@ python rosbag_processing_script/convert_to_kitti.py my_bag_annotations --output 
 # point cloud visualization script using rerun
 pip install rerun-sdk 
 rerun --serve & disown
-python3 rosbag_processing_script/rerun_pcd_replay.py <folder with point cloud path>
+python3 rosbag_processing_script/rerun_pcd_replay.py /folder/with/pointcloud/path
 ```
 
 Custom Data structure after running the code above with YOLO
@@ -216,6 +216,14 @@ annotations_YOLO_SAM2/
 ### Save Labels
 
 The final labels array `(0 = static, 1 = moving)` is written out in the same binary format as SemanticKITTI: one uint32 per point.
+
+## Manual annotation (on scalabel)
+- using [Scalabel annotation tool](https://github.com/scalabel/scalabel) for further refinement, the config is for the classes is present in `categories`
+```
+# Basic usage - generate point_cloud_list.yml from current folder
+python3 scalabel_format_files/generate_point_cloud_list.py /path/to/ply/files
+```
+![alt text](./assets/Screenshot_20250827_173500.png)
 
 ## Acknowledgment
 - I have used [temporal-point-transformer](https://github.com/LiDAR-Motion-Segmentation/temporal-point-transformer) model to train and evaluate on.
