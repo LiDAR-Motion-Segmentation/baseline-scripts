@@ -53,12 +53,12 @@ def kitti_collate_fn(batch):
         "offsets": torch.tensor(all_offsets, dtype=torch.long),
     }
     
-def downsample_pointcloud(pc, mask, max_points=20000):
-    """Downsample point cloud and corresponding mask to reduce memory usage"""
-    if len(pc) > max_points:
-        indices = np.random.choice(len(pc), max_points, replace=False)
-        return pc[indices], mask[indices]
-    return pc, mask
+# def downsample_pointcloud(pc, mask, max_points=20000):
+#     """Downsample point cloud and corresponding mask to reduce memory usage"""
+#     if len(pc) > max_points:
+#         indices = np.random.choice(len(pc), max_points, replace=False)
+#         return pc[indices], mask[indices]
+#     return pc, mask
 
 class SemanticKITTIDataset(Dataset):
     def __init__(self,
@@ -133,7 +133,7 @@ class SemanticKITTIDataset(Dataset):
             mask = (mask > 250).astype(np.float32)  # moving vs static
 
             pc, mask = crop_square_region(pc, mask, 10)
-            pc, mask= downsample_pointcloud(pc, mask)
+            # pc, mask= downsample_pointcloud(pc, mask)
             # t = np.ones((pc.shape[0], 1), dtype=np.float32) * times[i]
             t = np.ones([pc.shape[0], 1])*i/(self.num_pointclouds-1)
 
