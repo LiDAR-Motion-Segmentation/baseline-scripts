@@ -127,7 +127,7 @@ DATAROOT
 5) Visualization: Comprehensive visualizations for quality control
 ```
 # Step 1: Analyze data
-python custom_analyzer.py /path/to/DATAROOT/my_bag
+python rosbag_processing_script/custom_analyzer.py /path/to/DATAROOT/my_bag
 
 # Step 2: Generate annotations (with YOLOv8 only)
 pip install ultralytics

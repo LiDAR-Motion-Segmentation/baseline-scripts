@@ -87,6 +87,7 @@ class FixedMultiSensorAnnotator:
         (self.output_dir / "visualization").mkdir(exist_ok=True)
         # (self.output_dir / "visualization_camera_1").mkdir(exist_ok=True)
         # (self.output_dir / "visualization_camera_2").mkdir(exist_ok=True)
+        (self.output_dir / "visualization_ply").mkdir(exist_ok=True)
         (self.output_dir / "segmentation_masks").mkdir(exist_ok=True)
         (self.output_dir / "segmentation_masks" / "camera1").mkdir(exist_ok=True)
         (self.output_dir / "segmentation_masks" / "camera2").mkdir(exist_ok=True)
@@ -515,8 +516,10 @@ class FixedMultiSensorAnnotator:
         pcd.colors = o3d.utility.Vector3dVector(colors)
         
         viz_file = self.output_dir / "visualization" / f"{timestamp:019d}.pcd"
+        viz_file_ply = self.output_dir / "visualization_ply" / f"{timestamp:019d}.ply"
         success = o3d.io.write_point_cloud(str(viz_file), pcd)
-        if success:
+        success_ply = o3d.io.write_point_cloud(str(viz_file_ply), pcd)
+        if success and success_ply:
             print(f"  💾 Saved point cloud visualization: {viz_file.name}")
         
         # 2. Create camera visualizations with detections
