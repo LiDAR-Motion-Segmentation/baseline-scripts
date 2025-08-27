@@ -167,6 +167,7 @@ Custom Data structure after running the code with YOLO+SAM2
 annotations_YOLO_SAM2/
 ├── labels/                          # .label files for point cloud labels
 ├── visualization/                   # Labeled point clouds (.pcd)
+├── visualization_ply/               # Labeled point clouds (.ply)
 ├── visualization_camera_1/          # Camera 1 with bounding boxes + mask overlays
 ├── visualization_camera_2/          # Camera 2 with bounding boxes + mask overlays
 ├── segmentation_masks/
