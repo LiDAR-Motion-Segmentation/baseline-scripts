@@ -1,2 +1,14 @@
-- name: moving
-- name: non-moving
+- name: people-moving
+- name: mobile-robot-moving
+- name: wheelchair-moving 
+- name: cycle-moving
+- name: car-moving
+- name: scooter-moving
+- name: objects-moving
+- name: people-static
+- name: mobile-robot-static
+- name: wheelchair-static 
+- name: cycle-static
+- name: car-static
+- name: scooter-static
+- name: objects-static
