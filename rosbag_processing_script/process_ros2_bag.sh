@@ -1,9 +1,9 @@
 #!/bin/bash
 
-BAG=aug5-group-people-walkingout-with-door-open-no-ego-motion
+BAG=aug5-people-coming-outside-door-with-ego-motion
 
 # === Configuration ===
-BAG_FILE="/media/soumoroy/Extreme SSD/Motion-segementation-rosbags/aug/aug5/group-people-walkingout-with-door-open-no-ego-motion/rosbag/rosbag_0.db3"
+BAG_FILE="/media/soumoroy/Extreme SSD/Motion-segementation-rosbags/aug/aug5/people-coming-outside-door-with-ego-motion/rosbag/rosbag_0.db3"
 CAMERA_TOPIC_1="/camera1/camera1/color/image_raw"
 CAMERA_TOPIC_2="/camera2/camera2/color/image_raw"
 CAMERA_INFO_TOPIC_1="/camera1/camera1/color/camera_info"
