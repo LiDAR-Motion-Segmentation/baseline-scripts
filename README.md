@@ -218,13 +218,15 @@ annotations_YOLO_SAM2/
 
 The final labels array `(0 = static, 1 = moving)` is written out in the same binary format as SemanticKITTI: one uint32 per point.
 
-## Manual annotation (on scalabel)
+## Manual annotation (on scalabel or SUSTechPoints)
 - using [Scalabel annotation tool](https://github.com/scalabel/scalabel) for further refinement, the config is for the classes is present in `categories`
 ```
 # Basic usage - generate point_cloud_list.yml from current folder
 python3 scalabel_format_files/generate_point_cloud_list.py /path/to/ply/files
 ```
 ![alt text](./assets/Screenshot_20250827_173500.png)
+
+- [SUSTechPoints-V2](https://github.com/s0um0r0y/SUSTechPOINTS-v2) have been modified with custom classes in the repo, please use that for custom labeling with mobile robot, moving people and static people labels.
 
 ## Acknowledgment
 - I have used [temporal-point-transformer](https://github.com/LiDAR-Motion-Segmentation/temporal-point-transformer) model to train and evaluate on.
@@ -238,4 +240,15 @@ python3 scalabel_format_files/generate_point_cloud_list.py /path/to/ply/files
   url={https://arxiv.org/abs/2408.00714},
   year={2024}
 }
+
+@INPROCEEDINGS{9304562,
+  author={Li, E and Wang, Shuaijun and Li, Chengyang and Li, Dachuan and Wu, Xiangbin and Hao, Qi},
+  booktitle={2020 IEEE Intelligent Vehicles Symposium (IV)}, 
+  title={SUSTech POINTS: A Portable 3D Point Cloud Interactive Annotation Platform System}, 
+  year={2020},
+  volume={},
+  number={},
+  pages={1108-1115},
+  doi={10.1109/IV47402.2020.9304562}
+  } 
 ```
