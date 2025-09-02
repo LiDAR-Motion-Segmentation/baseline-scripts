@@ -5,32 +5,53 @@ class ObjectCategory
 
 
     obj_type_map = {
-        CarMoving:            {color: '#86af49',  size:[4.5, 1.8, 1.5], attr:["door open", "trunk open"]},
-        PedestrianMoving:     {color: '#ff0000',  size:[0.4, 0.5, 1.7], attr:["umbrella", "sitting", "squating", "bending over", "luggage"]},
-        
-        ObjectsMoving:            {color: '#00ff00',  size:[4.5, 1.8, 1.5], attr:["door open", "trunk open"]},
+        Car:            {color: '#86af49',  size:[4.5, 1.8, 1.5], attr:["door open", "trunk open"]},
+        moving_people:  {color: '#ff0000',  size:[0.4, 0.5, 1.7], attr:["umbrella", "sitting", "squating", "bending over", "luggage"]},
+        Van:            {color: '#00ff00',  size:[4.5, 1.8, 1.5], attr:["door open", "trunk open"]},
         Bus:            {color: '#ffff00',  size:[13, 3, 3.5]},
+        Truck:          {color: '#00ffff',  size:[10., 2.8, 3]},
         
-        MobilerobotMoving:          {color: '#00ffff',  size:[10., 2.8, 3]},
-        
-        ScooterRiderMoving:   {color: '#ff8800',  size:[1.6, 0.6, 1.6], attr:["umbrella", "1 passenger", "2 passengers", "3 passengers"]},
-        ScooterMoving:        {color: '#aaaa00',  size:[1.6, 0.6, 1.0]},
+        ScooterRider:   {color: '#ff8800c0',  size:[1.6, 0.6, 1.6], attr:["umbrella", "1 passenger", "2 passengers", "3 passengers"]},
+        Scooter:        {color: '#aaaa00',  size:[1.6, 0.6, 1.0]},
 
         
-        BicycleRiderMoving:   {color: '#88ff00',  size:[1.6, 0.6, 1.7], attr:["umbrella", "1 passenger", "2 passengers", "3 passengers"]},
-        BicycleMoving:        {color: '#ff8800',  size:[1.6, 0.6, 1.2], attr:["laying down"]},
+        BicycleRider:   {color: '#88ff00',  size:[1.6, 0.6, 1.7], attr:["umbrella", "1 passenger", "2 passengers", "3 passengers"]},
+        Bicycle:        {color: '#ff8800',  size:[1.6, 0.6, 1.2], attr:["laying down"]},
 
 
-        MotorcycleMoving:     {color: '#aaaa00',  size:[1.6, 0.6, 1.2], attr:["umbrella"]},
-        MotorcyleRiderMoving: {color: '#ff8800',  size:[1.6, 0.6, 1.6], attr:["umbrella", "1 passenger", "2 passengers", "3 passengers"]},
+        Motorcycle:     {color: '#aaaa00',  size:[1.6, 0.6, 1.2], attr:["umbrella"]},
+        MotorcyleRider: {color: '#ff8800',  size:[1.6, 0.6, 1.6], attr:["umbrella", "1 passenger", "2 passengers", "3 passengers"]},
 
-        RoadWorkerMoving:     {color: '#ff0000',  size:[0.4, 0.5, 1.7]},
-        ChildMoving:          {color: '#ff0000',  size:[0.4, 0.5, 1.2]},
+        
 
+        PoliceCar:      {color: '#86af49',  size:[4.5, 1.8, 1.5]},
+        TourCar:        {color: '#86af49',  size:[4.4, 1.5, 2.2]},
+
+        RoadWorker:     {color: '#ff0000',  size:[0.4, 0.5, 1.7]},
+        Child:          {color: '#ff0000',  size:[0.4, 0.5, 1.2]},
+
+        //Crowd:          {color: '#ff0000',  size:[1.6, 0.6, 1.2]},
+
+        BabyCart:       {color: '#ff0000',  size:[0.8, 0.5, 1.0]},
+        Cart:           {color: '#ff0000',  size:[0.8, 0.5, 1.0]},
+        Cone:           {color: '#ff0000',  size:[0.3, 0.3, 0.6]},
+        FireHydrant:    {color: '#ff0000',  size:[0.4, 0.4, 0.6]},
+        SaftyTriangle:  {color: '#ff0000',  size:[0.3, 0.4, 0.4]},
+        PlatformCart:   {color: '#ff0000',  size:[1.2, 0.8, 1.0]},
+        ConstructionCart: {color: '#ff0000',  size:[1.2, 0.8, 1.0]},
+        RoadBarrel:     {color: '#ff0000',  size:[0.5, 0.5, 0.6]},
+        TrafficBarrier: {color: '#ff0000',  size:[1.5, 0.3, 1.2]},
+        LongVehicle:    {color: '#ff0000',  size:[16, 3, 3]},
+
+        
         BicycleGroup:   {color: '#ff0000',  size:[1.6, 0.6, 1.2]},
+        
 
         ConcreteTruck:  {color: '#00ffff',  size:[10., 2.8, 3]},
-        AnimalMoving:         {color: '#00aaff',  size:[1.6, 0.6, 1.2]},
+        Tram:           {color: '#00ffff',  size:[10., 2.8, 3]},
+        Excavator:      {color: '#00ffff',  size:[6., 3, 3]},
+
+        Animal:         {color: '#00aaff',  size:[1.6, 0.6, 1.2]},
 
         TrashCan:         {color: '#00aaff',  size:[0.6, 0.4, 1.0]},
 
@@ -43,11 +64,12 @@ class ObjectCategory
 
         DontCare:       {color: '#00ff88',  size:[4, 4, 3]},
         Misc:           {color: '#008888',  size:[4.5, 1.8, 1.5]},
-        PeopleMoving:        {color: '#008888',  size:[4.5, 1.8, 1.5]},
-        MobilerobotMoving:       {color: '#008888',  size:[4.5, 1.8, 1.5]},
-        WheelchairMoving:       {color: '#008888',  size:[4.5, 1.8, 1.5]},
-        CycleMoving:       {color: '#008888',  size:[4.5, 1.8, 1.5]},
-        CarMoving:       {color: '#008888',  size:[4.5, 1.8, 1.5]},
+        people_static:        {color: '#887400ff',  size:[4.5, 1.8, 1.5]},
+        moving_mobile_robot:       {color: '#008888',  size:[4.5, 1.8, 1.5]},
+        Unknown2:       {color: '#008888',  size:[4.5, 1.8, 1.5]},
+        Unknown3:       {color: '#008888',  size:[4.5, 1.8, 1.5]},
+        Unknown4:       {color: '#008888',  size:[4.5, 1.8, 1.5]},
+        Unknown5:       {color: '#008888',  size:[4.5, 1.8, 1.5]},
     };
 
 
@@ -55,7 +77,7 @@ class ObjectCategory
         
     }
 
-    popularCategories = ["CarMoving", "PedestrianMoving", "MobileRobotMoving", "ScooterMoving", "ScooterRiderMoving", "BicycleMoving", "BicycleRiderMoving"];
+    popularCategories = ["Car", "moving_people", "Van", "Bus", "Truck", "Scooter", "ScooterRider", "Bicycle", "BicycleRider","moving_mobile_robot"];
 
     guess_obj_type_by_dimension(scale){
 
