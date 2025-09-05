@@ -229,7 +229,7 @@ python3 scalabel_format_files/generate_point_cloud_list.py /path/to/ply/files
 - [SUSTechPoints-V2](https://github.com/s0um0r0y/SUSTechPOINTS-v2) have been modified with custom classes in the repo, please use that for custom labeling with mobile robot, moving people and static people labels.
 - Please change the `sustech_format_files` in the code base to see an option for the mobile robot scenario
 
-![alt text](./assets/Screenshot%20from%202025-09-02%2022-39-22.png)
+![alt text](./assets/Screenshot%20from%202025-09-04%2018-07-29.png)
 
 ## Acknowledgment
 - I have used [temporal-point-transformer](https://github.com/LiDAR-Motion-Segmentation/temporal-point-transformer) model to train and evaluate on.
