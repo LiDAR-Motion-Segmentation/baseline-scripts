@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """
 Script to update obj_type for specific moving_people objects in JSON files
-For moving_people objects with obj_id = 2: change obj_type to people_static
+For moving_people objects:
+- obj_id 1 → change obj_type to people_static
+- obj_id 3 → change obj_type to people_static
+- obj_id 2 → keep as moving_people (no change)
 """
 
 import json
@@ -10,50 +13,58 @@ import glob
 import sys
 from pathlib import Path
 
-def update_people_obj_type(data, target_obj_id="2", source_obj_type="moving_people", target_obj_type="people_static"):
+def update_people_obj_type(data, source_obj_type="moving_people"):
     """
     Update obj_type for objects matching specific criteria
     
     Args:
         data: List of objects from JSON file
-        target_obj_id: Only update objects with this obj_id
         source_obj_type: Only update objects with this current obj_type
-        target_obj_type: Change obj_type to this value
     
     Returns:
         Updated data with new obj_type values and list of changes made
     """
     changes_made = []
     
+    # Define the mapping: obj_id -> new_obj_type
+    id_to_type_mapping = {
+        "1": "people_static",
+        "3": "people_static",
+        "2": "moving_people"  # This stays the same, but we'll mention it
+    }
+    
     for obj in data:
         if 'obj_id' in obj and 'obj_type' in obj:
             obj_id_str = str(obj['obj_id'])
             
-            # Check if this object matches our criteria
-            if obj['obj_type'] == source_obj_type and obj_id_str == target_obj_id:
-                old_obj_type = obj['obj_type']
-                obj['obj_type'] = target_obj_type
-                change_info = f"  Changed obj_type from '{old_obj_type}' to '{target_obj_type}' for obj_id {obj['obj_id']}"
-                print(change_info)
-                changes_made.append(change_info)
-            elif obj['obj_type'] == source_obj_type:
-                # Found moving_people but with different obj_id
-                print(f"  Found {source_obj_type} with obj_id {obj['obj_id']} (no change needed)")
+            # Check if this object has the source obj_type
+            if obj['obj_type'] == source_obj_type:
+                if obj_id_str in id_to_type_mapping:
+                    new_obj_type = id_to_type_mapping[obj_id_str]
+                    old_obj_type = obj['obj_type']
+                    
+                    if old_obj_type != new_obj_type:
+                        obj['obj_type'] = new_obj_type
+                        change_info = f"  Changed obj_type from '{old_obj_type}' to '{new_obj_type}' for obj_id {obj['obj_id']}"
+                        print(change_info)
+                        changes_made.append(change_info)
+                    else:
+                        print(f"  Found {source_obj_type} with obj_id {obj['obj_id']} (already correct type: {new_obj_type})")
+                else:
+                    print(f"  Found {source_obj_type} with obj_id {obj['obj_id']} (no mapping defined)")
             # else:
             #     # Uncomment to see other object types
             #     print(f"  Skipped obj_type: {obj['obj_type']}, obj_id: {obj.get('obj_id', 'N/A')}")
     
     return data, changes_made
 
-def process_json_files(directory_path, target_obj_id="2", source_obj_type="moving_people", target_obj_type="people_static", dry_run=False):
+def process_json_files(directory_path, source_obj_type="moving_people", dry_run=False):
     """
     Process all JSON files in the directory
     
     Args:
         directory_path: Path to directory containing JSON files
-        target_obj_id: Only update objects with this obj_id
         source_obj_type: Only update objects with this current obj_type
-        target_obj_type: Change obj_type to this value
         dry_run: If True, don't save files, just show what would be changed
     """
     # Get all JSON files and sort them numerically
@@ -74,10 +85,10 @@ def process_json_files(directory_path, target_obj_id="2", source_obj_type="movin
     for i, file_path in enumerate(json_files, 1):
         print(f"  {i}. {os.path.basename(file_path)}")
     
-    print(f"\nCriteria:")
-    print(f"  Source obj_type: '{source_obj_type}'")
-    print(f"  Target obj_id: '{target_obj_id}'")
-    print(f"  New obj_type: '{target_obj_type}'")
+    print(f"\nRules for '{source_obj_type}' objects:")
+    print(f"  obj_id 1 → change obj_type to 'people_static'")
+    print(f"  obj_id 3 → change obj_type to 'people_static'")
+    print(f"  obj_id 2 → keep as 'moving_people' (no change)")
     print(f"Dry run: {dry_run}")
     print("-" * 50)
     
@@ -95,9 +106,7 @@ def process_json_files(directory_path, target_obj_id="2", source_obj_type="movin
                 data = json.load(f)
             
             # Update obj_type for specific objects
-            updated_data, changes_made = update_people_obj_type(
-                data, target_obj_id, source_obj_type, target_obj_type
-            )
+            updated_data, changes_made = update_people_obj_type(data, source_obj_type)
             
             if changes_made:
                 files_modified += 1
@@ -111,7 +120,7 @@ def process_json_files(directory_path, target_obj_id="2", source_obj_type="movin
                 else:
                     print(f"  ✓ Would update: {filename}")
             else:
-                print(f"  - No {source_obj_type} objects with obj_id {target_obj_id} found")
+                print(f"  - No {source_obj_type} objects requiring changes found")
                 
         except json.JSONDecodeError as e:
             print(f"  ✗ Error parsing JSON in {filename}: {e}")
@@ -126,9 +135,7 @@ def process_json_files(directory_path, target_obj_id="2", source_obj_type="movin
 
 def main():
     # Configuration
-    target_obj_id = "2"
     source_obj_type = "moving_people"
-    target_obj_type = "people_static"
     
     # Get directory path from command line argument or use current directory
     if len(sys.argv) > 1:
@@ -145,16 +152,17 @@ def main():
     
     # Display configuration
     print(f"Directory: {os.path.abspath(directory_path)}")
-    print(f"Rule: If obj_type='{source_obj_type}' AND obj_id='{target_obj_id}' → change obj_type to '{target_obj_type}'")
+    print(f"Processing objects with obj_type: '{source_obj_type}'")
+    print(f"\nRules:")
+    print(f"  - obj_id 1 → change to 'people_static'")
+    print(f"  - obj_id 3 → change to 'people_static'")
+    print(f"  - obj_id 2 → keep as 'moving_people'")
     
-    # Option to modify configuration
-    modify = input(f"\nDo you want to modify the default settings? (y/n, default: n): ").strip().lower()
+    # Option to modify source obj_type
+    modify = input(f"\nDo you want to change the source obj_type? (y/n, default: n): ").strip().lower()
     if modify == 'y':
-        target_obj_id = input(f"Enter target obj_id (current: {target_obj_id}): ").strip() or target_obj_id
         source_obj_type = input(f"Enter source obj_type (current: {source_obj_type}): ").strip() or source_obj_type
-        target_obj_type = input(f"Enter target obj_type (current: {target_obj_type}): ").strip() or target_obj_type
-        
-        print(f"\nUpdated rule: If obj_type='{source_obj_type}' AND obj_id='{target_obj_id}' → change obj_type to '{target_obj_type}'")
+        print(f"Updated to process objects with obj_type: '{source_obj_type}'")
     
     # Option for dry run
     dry_run_input = input("\nDo you want to do a dry run first? (y/n, default: y): ").strip().lower()
@@ -162,7 +170,7 @@ def main():
     
     if dry_run:
         print("\n=== DRY RUN MODE ===")
-        process_json_files(directory_path, target_obj_id, source_obj_type, target_obj_type, dry_run=True)
+        process_json_files(directory_path, source_obj_type, dry_run=True)
         
         proceed = input("\nDry run complete. Do you want to proceed with actual changes? (y/n): ").strip().lower()
         if proceed != 'y':
@@ -171,7 +179,7 @@ def main():
     
     # Process files
     print(f"\n=== PROCESSING FILES ===")
-    process_json_files(directory_path, target_obj_id, source_obj_type, target_obj_type, dry_run=False)
+    process_json_files(directory_path, source_obj_type, dry_run=False)
     print("\n✓ All files processed successfully!")
 
 if __name__ == "__main__":
