@@ -231,6 +231,15 @@ python3 scalabel_format_files/generate_point_cloud_list.py /path/to/ply/files
 
 ![alt text](./assets/Screenshot%20from%202025-09-04%2018-07-29.png)
 
+## Hardware setup for data recording
+![alt text](./assets/Screenshot%20from%202025-09-11%2011-34-39.png)
+- Kangaroo X2 Motion controller
+- Sabertooth 2x32 Motor driver
+- AMT102-V Wheelencoders
+- RGB Camera: Realsense D455
+- Omnidirectional camera: Insta360 X5
+- 3D LiDAR: Livox MID-360
+
 ## Acknowledgment
 - I have used [temporal-point-transformer](https://github.com/LiDAR-Motion-Segmentation/temporal-point-transformer) model to train and evaluate on.
 
