@@ -3,14 +3,14 @@
 BAG=sep11-going-towards-ihub
 
 # === Configuration ===
-BAG_FILE="/media/soumoroy/Extreme SSD/Motion-segementation-rosbags/sep/going-towards-ihub/rosbag/rosbag_0.db3"
+BAG_FILE="/scratch2/soumo_roy/Motion-segementation-rosbags/sep/going-towards-ihub/rosbag/rosbag_0.db3"
 CAMERA_TOPIC_1="/camera1/camera1/color/image_raw"
 CAMERA_TOPIC_2="/camera2/camera2/color/image_raw"
 CAMERA_INFO_TOPIC_1="/camera1/camera1/color/camera_info"
 CAMERA_INFO_TOPIC_2="/camera2/camera2/color/camera_info"
 CAMERA_TOPIC_3="/dual_fisheye/image"
 LIDAR_TOPIC="/livox/lidar"
-OUTPUT_DIR="/media/soumoroy/Extreme SSD/Motion-segementation-rosbags/soumo/sep11/processed_bags/$BAG"
+OUTPUT_DIR="/scratch2/soumo_roy/Motion-segementation-rosbags/soumo/sep11/processed_bags/$BAG"
 SYNC_TOL=0.1
 
 # === Run the script ===
