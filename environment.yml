@@ -165,6 +165,7 @@ dependencies:
       - nvidia-nvtx-cu12==12.6.77
       - omegaconf==2.3.0
       - open3d==0.19.0
+      - opencv-python==4.12.0.88
       - packaging==25.0
       - pandas==2.3.1
       - parso==0.8.4
