@@ -243,6 +243,10 @@ python3 scalabel_format_files/generate_point_cloud_list.py /path/to/ply/files
 - Omnidirectional camera: Insta360 X5
 - 3D LiDAR: Livox MID-360
 
+## RVIZ2 config for visualization
+- I have added the RVIZ2 config in `rviz_config` folder for visualization
+![!alt text](./assets/Screenshot%20from%202025-09-12%2017-40-00.png)
+
 ## Acknowledgment
 - I have used [temporal-point-transformer](https://github.com/LiDAR-Motion-Segmentation/temporal-point-transformer) model to train and evaluate on.
 
