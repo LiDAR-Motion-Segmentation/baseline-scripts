@@ -137,7 +137,7 @@ dependencies:
       - nest-asyncio==1.6.0
       - networkx==3.5
       - ninja==1.11.1.4
-      - numpy==2.2.6
+      - numpy==1.22.4
       - nvidia-cublas-cu11==11.11.3.6
       - nvidia-cublas-cu12==12.6.4.1
       - nvidia-cuda-cupti-cu11==11.8.87
