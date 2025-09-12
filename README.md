@@ -97,8 +97,10 @@ python3 -m scripts.visualize_semantic_kitty --config_path <path>/config/semantic
 ## ROSbag processing for custom Dataset
 
 - remember to change the directories in the bash scripts as per your directory path for seamless usage
+- change the bash file to uncomment the lines if your run out of memory
 ```
 # for ROS2 humble bags
+conda deactivate
 ./rosbag_processing_script/process_ros2_bag.sh
 
 # for ROS1 noetic bags
