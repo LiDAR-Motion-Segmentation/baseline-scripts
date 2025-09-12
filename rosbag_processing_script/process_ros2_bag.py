@@ -21,27 +21,29 @@ def main():
     parser.add_argument('--camera-info-topic', required=True, help='Primary camera info topic')
     parser.add_argument('--camera-topic-2', default=True, help='Secondary camera image topic (optional)')
     parser.add_argument('--camera-info-topic-2', default=True, help='Secondary camera info topic (optional)')
+    parser.add_argument('--camera-topic-3', default=True, help='Third camera image topic (optional)')
     
     # Processing options
     parser.add_argument('--sync-tol', type=float, default=0.1, help='Synchronization tolerance in seconds')
-    parser.add_argument('--dual-camera', action='store_true', help='Enable dual camera processing mode')
+    parser.add_argument('--multi-camera', action='store_true', help='Enable dual camera processing mode')
     
     args = parser.parse_args()
     
     # Validate dual camera configuration
-    if args.dual_camera and (not args.camera_topic_2 or not args.camera_info_topic_2):
-        parser.error("--dual-camera requires both --camera-topic-2 and --camera-info-topic-2")
+    if args.multi_camera and (not args.camera_topic_2 or not args.camera_info_topic_2 or not args.camera_topic_3):
+        parser.error("--multi-camera requires both --camera-topic-2 and --camera-topic-3")
 
     output_dir = Path(args.output_dir)
     lidar_dir = output_dir / 'lidar'
     
     # Create directories based on camera configuration
-    if args.dual_camera:
+    if args.multi_camera:
         image1_dir = output_dir / 'camera1_images'
         intrinsics1_dir = output_dir / 'camera1_intrinsics'
         image2_dir = output_dir / 'camera2_images'
         intrinsics2_dir = output_dir / 'camera2_intrinsics'
-        dirs_to_create = [image1_dir, intrinsics1_dir, image2_dir, intrinsics2_dir, lidar_dir]
+        image3_dir = output_dir / 'camera3_images'
+        dirs_to_create = [image1_dir, intrinsics1_dir, image2_dir, intrinsics2_dir, image3_dir, lidar_dir]
     else:
         image_dir = output_dir / 'images'
         intrinsics_dir = output_dir / 'intrinsics'
@@ -70,6 +72,7 @@ def main():
     caminfo_msgs = []
     camera2_msgs = []
     caminfo2_msgs = []
+    camera3_msgs = []
     lidar_msgs = []
     
     # Primary camera (always required)
@@ -88,14 +91,20 @@ def main():
         caminfo_msgs = [(timestamp, data, topic_type_map[args.camera_info_topic]) for timestamp, data in caminfo_rows]
     
     # Secondary camera (conditional)
-    if args.dual_camera and args.camera_topic_2 in topic_id_map:
+    if args.multi_camera and args.camera_topic_2 in topic_id_map and args.camera_topic_3 in topic_id_map:
         camera2_id = topic_id_map[args.camera_topic_2]
         camera2_rows = cursor.execute(
             "SELECT timestamp, data FROM messages WHERE topic_id=? ORDER BY timestamp", 
             (camera2_id,)).fetchall()
         camera2_msgs = [(timestamp, data, topic_type_map[args.camera_topic_2]) for timestamp, data in camera2_rows]
-    
-    if args.dual_camera and args.camera_info_topic_2 in topic_id_map:
+        
+        camera3_id = topic_id_map[args.camera_topic_3]
+        camera3_rows = cursor.execute(
+            "SELECT timestamp, data FROM messages WHERE topic_id=? ORDER BY timestamp", 
+            (camera3_id,)).fetchall()
+        camera3_msgs = [(timestamp, data, topic_type_map[args.camera_topic_3]) for timestamp, data in camera3_rows]
+      
+    if args.multi_camera and args.camera_info_topic_2 in topic_id_map:
         caminfo2_id = topic_id_map[args.camera_info_topic_2]
         caminfo2_rows = cursor.execute(
             "SELECT timestamp, data FROM messages WHERE topic_id=? ORDER BY timestamp", 
@@ -113,15 +122,16 @@ def main():
     conn.close()
     
     print(f"Found {len(camera_msgs)} primary camera messages, {len(lidar_msgs)} LiDAR messages")
-    if args.dual_camera:
+    if args.multi_camera:
         print(f"Found {len(camera2_msgs)} secondary camera messages")
 
     # Synchronize messages
     sync_pairs_primary = synchronize_with_lidar(lidar_msgs, camera_msgs, args.sync_tol)
     
-    if args.dual_camera:
+    if args.multi_camera:
         sync_pairs_secondary = synchronize_with_lidar(lidar_msgs, camera2_msgs, args.sync_tol)
-        print(f"Found {len(sync_pairs_primary)} primary and {len(sync_pairs_secondary)} secondary sync pairs")
+        sync_pairs_tertiary = synchronize_with_lidar(lidar_msgs, camera3_msgs, args.sync_tol)
+        print(f"Found {len(sync_pairs_primary)} primary and {len(sync_pairs_secondary)} secondary sync pairs and {len(sync_pairs_tertiary)} tertiary pairs")
     else:
         print(f"Found {len(sync_pairs_primary)} synchronized pairs")
     
@@ -137,7 +147,7 @@ def main():
             img = process_image(msg_img, img_type)
             
             if img is not None:
-                if args.dual_camera:
+                if args.multi_camera:
                     img_filename = image1_dir / f"{lidar_ts}.png"
                 else:
                     img_filename = image_dir / f"{lidar_ts}.png"
@@ -147,7 +157,7 @@ def main():
             # Process primary camera intrinsics
             caminfo = find_closest(img_ts, caminfo_msgs)
             if caminfo:
-                if args.dual_camera:
+                if args.multi_camera:
                     save_intrinsics(caminfo, intrinsics1_dir, lidar_ts)
                 else:
                     save_intrinsics(caminfo, intrinsics_dir, lidar_ts)
@@ -163,7 +173,7 @@ def main():
             print(f"Error processing primary pair {idx+1}: {e}")
 
     # Process secondary camera pairs (if dual camera mode)
-    if args.dual_camera:
+    if args.multi_camera:
         for idx, (lidar_ts, lidar_data, lidar_type, (img_ts, img_data, img_type)) in enumerate(sync_pairs_secondary):
             try:
                 # Process secondary camera image
@@ -185,9 +195,27 @@ def main():
 
             except Exception as e:
                 print(f"Error processing secondary pair {idx+1}: {e}")
+                
+        for idx, (lidar_ts, lidar_data, lidar_type, (img_ts, img_data, img_type)) in enumerate(sync_pairs_tertiary):
+            try:
+                # Process tertiary camera image (360 degree camera)
+                img_msg_class = get_message(img_type)
+                msg_img = deserialize_message(img_data, img_msg_class)
+                img = process_image(msg_img, img_type)
+                
+                if img is not None:
+                    img_filename = image3_dir / f"{lidar_ts}.png"
+                    cv2.imwrite(str(img_filename), img)
+                    print(f"Saved tertiary camera image: {img_filename.name}")
+                    
+                # no intrinsics for 360 degree camera
+                print(f"Processed tertiary pair {idx+1}/{len(sync_pairs_tertiary)}")
 
-    if args.dual_camera:
-        print(f"Processing complete. Primary: {len(sync_pairs_primary)}, Secondary: {len(sync_pairs_secondary)} pairs")
+            except Exception as e:
+                print(f"Error processing tertiary pair {idx+1}: {e}")
+
+    if args.multi_camera:
+        print(f"Processing complete. Primary: {len(sync_pairs_primary)}, Secondary: {len(sync_pairs_secondary)} pairs, Tertiary: {len(sync_pairs_tertiary)} pairs")
     else:
         print(f"Processing complete. Saved {len(sync_pairs_primary)} synchronized pairs")
 
