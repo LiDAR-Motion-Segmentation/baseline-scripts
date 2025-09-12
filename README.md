@@ -1,6 +1,7 @@
 # baseline-scripts for temporal-point-transformer
 1) Extra utility codes for adapting `Motion Object Segmentation Algoritms` for JRDB dataset and semantic kitty dataset. 
-2) Custom Data Annotation pipeline in `Semantic Kitty` format for converting an rosbag into annotated data for `Motion Object Segmentation Algoritms` using YOLOv8 + SAM2.
+2) Custom Data Parsing from ROSbags and Data Annotation pipeline in `Semantic Kitty` format for converting an rosbag into annotated data for `Motion Object Segmentation Algoritms` using YOLOv8 + SAM2.
+3) Hardware setup for custom data collection
 
 ## semantic kitty scripts
 - the files are placed in `training_script_semantic_kitty` directory

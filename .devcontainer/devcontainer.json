@@ -1,0 +1,75 @@
+{
+    "name": "motion-segmentation",
+    "image": "ghcr.io/smart-wheelchair-rrc/wheelchair2_base_gazebo:v4.3",
+    "privileged": true,
+    "workspaceMount": "source=${localWorkspaceFolder},target=/home/container_user/wheelchair2/src,type=bind",
+    "workspaceFolder": "/home/container_user/wheelchair2/src",
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "actionButtons": {
+                    "defaultColor": "#ff0034",
+                    "loadNpmCommands": false,
+                    "reloadButton": "♻️",
+                    "commands": [
+                        {
+                            "name": "Build WS",
+                            "cwd": "/home/container_user/wheelchair2",
+                            "color": "aqua",
+                            "singleInstance": true,
+                            "command": "colcon build --symlink-install --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && source install/setup.bash"
+                        }
+                    ]
+                },
+                "C_Cpp.default.intelliSenseMode": "gcc-x64"
+            },
+            "extensions": [
+                "althack.ament-task-provider",
+                "betwo.b2-catkin-tools",
+                "DotJoshJohnson.xml",
+                "ms-azuretools.vscode-docker",
+                "Ranch-Hand-Robotics.rde-pack",
+                "ms-python.python",
+                "ms-vscode.cpptools",
+                "redhat.vscode-yaml",
+                "seunlanlege.action-buttons",
+                "smilerobotics.urdf",
+                "streetsidesoftware.code-spell-checker",
+                "twxs.cmake",
+                "yzhang.markdown-all-in-one",
+                "zachflower.uncrustify",
+                "akhail.save-typing"
+            ]
+        }
+    },
+    "containerEnv": {
+        "DISPLAY": "${localEnv:DISPLAY}", // Needed for GUI try ":0" for windows
+        "WAYLAND_DISPLAY": "${localEnv:WAYLAND_DISPLAY}",
+        "XDG_RUNTIME_DIR": "${localEnv:XDG_RUNTIME_DIR}",
+        "PULSE_SERVER": "${localEnv:PULSE_SERVER}",
+        "QT_X11_NO_MITSHM": "1",
+        // "LIBGL_ALWAYS_SOFTWARE": "1", // Needed for software rendering of opengl ( Comment this off if you face any lag in Gazebo )
+        "NVIDIA_DRIVER_CAPABILITIES": "all",
+        "NVIDIA_VISIBLE_DEVICES": "all",
+        "ROS_DOMAIN_ID": "79"
+    },
+    "runArgs": [
+        "--gpus=all", // Comment this off if you don't have a GPU
+        "--cap-add=SYS_NICE",
+        "--ulimit=rtprio=99",
+        "--ulimit=rttime=-1",
+        "--ulimit=memlock=8428281856",
+        "--cap-add=all",
+        "--security-opt=seccomp:unconfined",
+        "--security-opt=apparmor:unconfined",
+        // "--device=/dev/ttyACM0", // Motor driver only
+        "--volume=/dev:/dev", // Realsense and Motor driver
+        "--volume=/media:/media:rw",
+        "--volume=/scratch/soumo_roy:/scratch/soumo_roy:rw",
+        "--volume=/scratch2/soumo_roy:/scratch2/soumo_roy:rw",
+        "--net=host",
+        "--ipc=host",
+        "--name=motion-segmentation"
+    ],
+    "postStartCommand": "sudo chown -R container_user:container_user /home/container_user/wheelchair2 /run"
+}
