@@ -2,6 +2,7 @@
 1) Extra utility codes for adapting `Motion Object Segmentation Algoritms` for JRDB dataset and semantic kitty dataset. 
 2) Custom Data Parsing from ROSbags and Data Annotation pipeline in `Semantic Kitty` format for converting an rosbag into annotated data for `Motion Object Segmentation Algoritms` using YOLOv8 + SAM2.
 3) Hardware setup for custom data collection
+4) Docker devcontainer and RVIZ2 setup for visualization
 
 ## semantic kitty scripts
 - the files are placed in `training_script_semantic_kitty` directory
@@ -243,12 +244,36 @@ python3 scalabel_format_files/generate_point_cloud_list.py /path/to/ply/files
 - Omnidirectional camera: Insta360 X5
 - 3D LiDAR: Livox MID-360
 
-## RVIZ2 config for visualization
+## Docker Devconatiner and RVIZ2 config for visualization
 - I have added the RVIZ2 config in `rviz_config` folder for visualization
+- Try to use the docker devcontainer setup by [Tarun Ramakrishnan](https://github.com/rtarun1) for running the ROS2 processing and visualization to prevent dependency conflicts
+```bash
+  # GHCR Authentication
+  echo "<YOUR_GITHUB_PAT>" | docker login ghcr.io -u <YOUR_GITHUB_USERID> --password-stdin
+  ``` 
+```
+# you should get an output like this before proceeding ahead
+Configure a credential helper to remove this warning. See
+https://docs.docker.com/go/credential-store/
+
+Login Succeeded
+```
+- Change line 67 and 68 in `.devconatiner/devcontainer.json`
+```
+# Change location as per your mounting directory
+"--volume=/scratch/<username>:/scratch/<username>:rw",
+# If your server does not have scratch2 remove this line
+"--volume=/scratch2/<username>:/scratch2/<username>:rw",
+```
+- **Enter the container**
+    - Open Command Pallete in vscode editor with `Ctrl+Shift+P`
+    - Select **Dev Containers: Rebuild and Reopen in Container**
+
 ![!alt text](./assets/Screenshot%20from%202025-09-12%2017-40-00.png)
 
 ## Acknowledgment
 - I have used [temporal-point-transformer](https://github.com/LiDAR-Motion-Segmentation/temporal-point-transformer) model to train and evaluate on.
+- I would like to thank [Tarun Ramakrishnan](https://github.com/rtarun1) and [Aadith warrier](https://github.com/aadith-warrier) for their support especially with the hardware.
 
 ## Citation
 ```
