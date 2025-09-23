@@ -99,7 +99,7 @@ class EnhancedMotionAnalyser:
         self.motion_threshold = motion_threshold
         self.velocity_threshold = 0.1 # m/s
         self.track_histories = defaultdict(lambda: deque(maxlen=history_length))
-        self.object_charactertics = {}
+        self.object_characteristics = {}
         
     def update_track(self, obj_id: str, bbox: BoundingBox3D, timestamp: float):
         history_entry = {
@@ -112,5 +112,116 @@ class EnhancedMotionAnalyser:
         
         if obj_id not in self.object_charactertics:
             self.object_charactertics[obj_id] = {
-                'avg_size': bbox
+                'avg_size': bbox.size.copy(),
+                'size_variance': np.zeros(3),
+                'typical_height': bbox.size[2]
             }
+        else:
+            char = self.object_charactertics[obj_id]
+            alpha = 0.1
+            char['avg_size'] = (1 - alpha) * char['avg_size'] + alpha * bbox.size
+            char['size_variance'] = (1 - alpha) * char['size_variance'] + alpha * (bbox.size - char['avg_size']) ** 2
+            
+    def classify_object_type(self, obj_id: str) -> ObjectType:
+        if obj_id not in self.track_histories:
+            return ObjectType.UNKNOWN
+        
+        history = list(self.track_histories[obj_id])
+        if len(history) < 3:
+            return ObjectType.UNKNOWN
+        
+        char = self.object_charactertics.get(obj_id, {})
+        avg_size = char.get('avg_size', np.array([0.5, 0.5, 1.7]))
+        motion_stats = self._calculate_motion_statistics(history)
+        
+        is_human_sized = self._is_human_sized(avg_size)
+        is_robot_sized = self._is_robot_sized(avg_size)
+        is_moving = motion_stats['avg_velocity'] > self.motion_threshold
+        is_fast_moving = motion_stats['max_velocity'] > self.velocity_threshold
+        
+        if is_human_sized:
+            if is_moving:
+                return ObjectType.MOVING_PEOPLE
+            else:
+                return ObjectType.PEOPLE_STATIC
+        elif is_robot_sized and is_fast_moving:
+            return ObjectType.MOVING_MOBILE_ROBOT
+        elif not is_moving:
+            return ObjectType.STATIC_OBJECT
+        
+    def _calculate_motion_statistics(self, history: List[Dict]) -> Dict[str, float]:
+        if len(history) < 2:
+            return {'avg_velocity': 0.0, 'max_velocity': 0.0, 'acceleration': 0.0}
+        position = np.array((h['position'] for h in history))
+        timestamp = np.array((h['timestamp'] for h in history))
+        velocities = []
+        for i in range(1, len(position)):
+            dt = timestamp[i] - timestamp[i-1]
+            if dt > 0:
+                velocity = np.linalg.norm(position[i] - position[i-1]) / dt
+                velocities.append(velocity)
+                
+        if not velocities:
+            return  {'avg_velocity': 0.0, 'max_velocity': 0.0, 'acceleration': 0.0}
+        
+        acceleration = 0.0
+        if len(history) >= 2:
+            vel_changes = np.diff(velocities)
+            acceleration = np.mean(np.abs(vel_changes))
+            
+        return {
+            'avg_velocity': np.mean(velocities),
+            'max_velocity': np.max(velocities),
+            'acceleration': acceleration,
+            'velocity_std': np.std(velocities)
+        }
+        
+    # might need to change the values in future    
+    def _is_human_sized(self, size: np.ndarray) -> bool:
+        length, width, height = size
+        return (0.3 <= length <= 0.8 and 
+                0.3 <= width <= 0.8 and 
+                1.2 <= height <= 2.2)
+
+    def _is_robot_sized(self, size: np.ndarray) -> bool:
+        length, width, height = size
+        return (0.4 <= length <= 1.2 and 
+                0.4 <= width <= 1.2 and 
+                0.3 <= height <= 1.5)
+        
+class EnhancedPointPillarDetector:
+    def __init__(self, model_path: Optional[str] = None, device: str = "cuda"):
+        self.device = device
+        self.model_path = model_path
+        self.confidence_threshold = 0.4
+        self.nms_threshold = 0.5
+        
+        # testing some standard values might need to change in the future
+        self.object_specs = {
+            'human': {
+                'size_range': {'length': (0.3, 0.8), 'width': (0.3, 0.8), 'height': (1.2, 2.2)},
+                'height_filter': (0.5, 2.5),
+                'min_points': 20
+            },
+            'robot': {
+                'size_range': {'length': (0.4, 1.2), 'width': (0.4, 1.2), 'height': (0.3, 1.5)},
+                'height_filter': (0.2, 1.8),
+                'min_points': 30
+            }
+        }
+        logger.info(f"Initialized Enhanced PointPillars detector on {device}")
+        
+    def detect_objects(self, pointcloud: np.ndarray) -> List[BoundingBox3D]:
+        if pointcloud.shape[0] < 100:
+            return []
+        detections = []
+        
+        for obj_class, specs in self.object_specs.items():
+            class_detections = self._detect_object_class(pointcloud, obj_class, specs)
+            detections.extend(class_detections)
+        
+        detections = self._apply_nms(detections)
+        logger.debug(f"Detected {len(detections)} objects total")
+        return detections
+    
+    
