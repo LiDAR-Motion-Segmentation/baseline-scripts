@@ -330,4 +330,78 @@ class EnhancedPointPillarDetector:
             return max(0.0, 1.0 - (center_dist / size_sum))
         
 class EnhancedPointCloudTrackingSystem:
+    def __init__(self, output_dir: str, config_path: Optional[str] = None):
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(exist_ok=True, parents=True)
+        self.config = self._load_config(config_path)
+        self.detector = EnhancedPointPillarDetector()
+        self.tracker = SimpleTracker(
+            max_distance = self.config.get('tracking', {}).get('max_distance', 2.0),
+            max_disappeared = self.config.get('tracking', {}).get('max_disappeared', 5)
+        ) 
+        
+        # storing results
+        self.tracking_results = []
+        self.performance_stats = {
+            'total_processing_time': 0.0,
+            'frames_processed': 0, 
+            'total_detections': 0,
+            'detection_breakdown': defaultdict(int)
+        }
+        
+        logger.info("Enhanced tracking system initialized")
+        
+    def _load_config(self, config_path: Optional[str]) -> Dict:
+        default_config = {
+            'detection': {
+                'confidence_threshold': 0.4,
+                'nms_threshold': 0.5
+            },
+            'tracking': {
+                'max_distance': 2.0,
+                'max_disappeared': 5,
+                'motion_analysis': {
+                    'history_length': 15,
+                    'motion_threshold': 0.1
+                }
+            },
+            'output': {
+                'export_confidence': True,
+                'export_timestamps': True,
+                'export_metadata': True
+            }
+        }
+        
+        if config_path and os.path.exists(config_path):
+            try:
+                with open(config_path, 'r') as f:
+                    user_config = json.load(f)
+                default_config.update(user_config)
+                logger.info(f"Loaded configuration from {config_path}")
+            except Exception as e:
+                logger.warning(f"Failed to load config from {config_path}: {e}")
+
+        return default_config
+
+    def process_directory_parallel(self, pcd_directory: str, num_workers: int = 4):
+        pcd_files = self._get_sorted_pcd_files(pcd_directory)
+        
+        if not pcd_files:
+            logger.error(f"No PCD files found in {pcd_directory}")
+            return
+
+        logger.info(f"Processing {len(pcd_files)} files with {num_workers} workers")
+
+        batch_size = max(1, len(pcd_files) // num_workers)
+        
+        # parallelizing with 4 cores as of now
+        with ThreadPoolExecutor(max_workers=num_workers) as executor:
+            for i in range(0, len(pcd_files), batch_size):
+                batch = pcd_files[i:i + batch_size]
+                for frame_id, pcd_path in enumerate(batch, start=1):
+                    future = executor.submit(self._process_single_frame, frame_id, pcd_path)
+                    result = future.result()
+                    if result:
+                        self.export_frame_json(result)
+                        
     
