@@ -404,4 +404,52 @@ class EnhancedPointCloudTrackingSystem:
                     if result:
                         self.export_frame_json(result)
                         
+        self._finalize_processing()
+        
+    def _process_single_frame(self, frame_id: int, pcd_path: Path) -> Optional[TrackingResult]:
+        start_time = time.time()
+        timestamp = start_time
+        
+        try:
+            pointcloud = self._load_pointcloud(str(pcd_path))
+            if len(pointcloud) == 0:
+                return None
+            
+            detections = self.detector.detect_objects(pointcloud)
+            tracked_objects = self.tracker.update(detections)
+            
+            for obj in tracked_objects:
+                obj.timestamp = timestamp
+                self.motion_analyser.update_track(obj.obj_id, obj, timestamp)
+                obj.obj_type = self.motion_analyser.classify_object_type(obj.obj_id)
+                
+            processing_time = time.time() - start_time
+            
+            detection_count = defaultdict(int)
+            for obj in tracked_objects:
+                detection_count[obj.obj_type] += 1
+                
+            result = TrackingResult(
+                frame_id=frame_id,
+                timestamp=timestamp,
+                boxes=tracked_objects,
+                pointcloud_path=str(pcd_path)
+                processing_time=processing_time,
+                detection_count=dict(detection_count)
+            )
+            
+            self.performance_stats['frames_processed'] += 1
+            self.performance_stats['total_processing_time'] += processing_time
+            self.performance_stats['total_detections'] += len(tracked_objects)
+            
+            for obj_type, count in detection_count.items():
+                self.performance_stats['detection_breakdown'][obj_type.value] += count
+                
+            logger.info(f"Frame {frame_id}: {len(tracked_objects)} objects, {processing_time:.3f}s")
+            return result
+        
+        except Exception as e:
+            logger.error(f"Error processing frame {frame_id} ({pcd_path.name}): {e}")
+            return None
+        
     
