@@ -545,3 +545,127 @@ class EnhancedPointCloudTrackingSystem:
                 classification_counts[obj.obj_type.value] += 1
 
         return dict(classification_counts)
+    
+class SimpleTracker:
+    def __init__(self, max_distance: float=2.0, max_disappeared: int = 5):
+        self.max_distance = max_distance
+        self.max_disappeared = max_disappeared
+        self.next_id = 1
+        self.active_tracks = {}
+        self.disappeared_tracks = {}
+        
+    def update(self, detections: List[BoundingBox3D]) -> List[BoundingBox3D]:
+        if not detections:
+            for track_id in list(self.disappeared.keys()):
+                self.disappeared[track_id] += 1
+                if self.disappeared[track_id] > self.max_disappeared:
+                    del self.active_tracks[track_id]
+                    del self.disappeared[track_id]        
+            return []
+        
+        if not self.active_tracks:
+            for detection in detections:
+                track_id = str(self.next_id)
+                detection.obj_id = track_id
+                self.active_tracks[track_id] = detection
+                self.next_id += 1
+            return detection
+        
+        track_positions = np.array([track.center for track in self.active_tracks.values()])
+        detection_positions = np.array([det.center for det in detection])
+        distance_matrix = cdist(track_positions, detection_positions)
+        used_detection_indices = set()
+        updated_tracks = []
+        
+        for i, (track_id, track) in enumerate(self.active_tracks.items()):
+            if i >= len(distance_matrix):
+                continue
+            
+            min_distance_idx = np.argmax(distance_matrix[i])
+            min_distance = distance_matrix[i, min_distance_idx]
+            
+            if min_distance < self.max_distance and min_distance_idx not in used_detection_indices:
+                detections[min_distance_idx].obj_id = track_id
+                self.active_tracks[track_id] = detections[min_distance_idx]
+                updated_tracks.append(detections[min_distance_idx])
+                used_detection_indices.add(min_distance_idx)
+                
+                if track_id in self.disappeared:
+                    del self.disappeared[track_id]
+                    
+            else:
+                self.disappeared[track_id] = self.disappeared.get(track_id, 0) + 1
+                if self.disappeared[track_id] <= self.max_disappeared:
+                    updated_tracks.append(track)
+                    
+        for i, detection in enumerate(detections):
+            if i not in used_detection_indices:
+                track_id = str(self.next_id)
+                detection.obj_id = track_id
+                self.active_tracks[track_id] = detection
+                updated_tracks.append(detection)
+                self.next_id += 1
+                
+        for track_id in list(self.disappeared.keys()):
+            if self.disappeared[track_id] > self.max_disappeared:
+                del self.active_tracks[track_id]
+                del self.disappeared[track_id]
+                
+        return updated_tracks
+    
+def main():
+    parser = argparse.ArgumentParser(description="Enhanced 3D Point Cloud Human Tracking System")
+    parser.add_argument("pcd_directory", help="Directory containing PCD files")
+    parser.add_argument("--output", "-o", default="./enhanced_tracking_output", 
+                       help="Output directory for JSON files")
+    parser.add_argument("--config", "-c", help="Path to configuration JSON file")
+    parser.add_argument("--workers", "-w", type=int, default=2,
+                       help="Number of parallel workers (default: 2)")
+    parser.add_argument("--motion-threshold", "-t", type=float, default=0.1,
+                       help="Motion threshold in meters/second (default: 0.1)")
+    parser.add_argument("--verbose", "-v", action="store_true", 
+                       help="Enable verbose logging")
+    args = parser.parse_args()
+    
+    if args.verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+
+    # Validate input directory
+    if not os.path.exists(args.pcd_directory):
+        logger.error(f"Input directory does not exist: {args.pcd_directory}")
+        return
+
+    # Initialize enhanced tracking system
+    tracking_system = EnhancedPointCloudTrackingSystem(
+        output_dir=args.output,
+        config_path=args.config
+    )
+
+    # Override motion threshold if specified
+    if hasattr(tracking_system.motion_analyzer, 'motion_threshold'):
+        tracking_system.motion_analyzer.motion_threshold = args.motion_threshold
+
+    # Process directory
+    logger.info(f"Starting enhanced processing of {args.pcd_directory}")
+    start_time = time.time()
+
+    try:
+        tracking_system.process_directory_parallel(args.pcd_directory, args.workers)
+
+        total_time = time.time() - start_time
+        logger.info(f"Enhanced processing completed in {total_time:.2f} seconds")
+        logger.info(f"Results saved to {args.output}")
+
+        # Print performance summary
+        stats = tracking_system.performance_stats
+        logger.info(f"Performance: {stats['frames_processed']} frames, "
+                   f"{stats['total_detections']} detections, "
+                   f"{stats['total_processing_time']:.2f}s total processing")
+
+    except Exception as e:
+        logger.error(f"Error during enhanced processing: {e}")
+        import traceback
+        traceback.print_exc()
+
+if __name__ == "__main__":
+    main()
