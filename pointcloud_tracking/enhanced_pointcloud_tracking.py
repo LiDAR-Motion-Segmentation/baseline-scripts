@@ -452,4 +452,96 @@ class EnhancedPointCloudTrackingSystem:
             logger.error(f"Error processing frame {frame_id} ({pcd_path.name}): {e}")
             return None
         
-    
+    def export_frame_json(self, result: TrackingResult) -> str:
+        json_data = []
+        
+        for box in result.boxes:
+            obj_data = box.to_dict()
+            
+             # Remove metadata if not configured to export
+            if not self.config.get('output', {}).get('export_metadata', True):
+                obj_data.pop('metadata', None)
+
+            json_data.append(obj_data)
+            
+        output_path = self.output_dir / f"frame_{result.frame_id:06d}.json"
+        with open(output_path, 'w') as f:
+            json.dump(json_data, f, indent=2)
+
+        return str(output_path)
+
+    def _finalize_processing(self):
+        self.export_comprehensive_summary()
+        
+        # performance plot for analysis
+        if HAS_VISUALIZATION:    
+            self.generate_performance_plot()
+            
+        logger.info("Processing completed successfully")  
+        
+    def export_comprehensive_summary(self):
+        avg_processing_time = (self.performance_stats['total_processing_time'] / 
+                             max(1, self.performance_stats['frames_processed']))
+
+        summary = {
+            "processing_statistics": {
+                "total_frames": self.performance_stats['frames_processed'],
+                "total_processing_time": self.performance_stats['total_processing_time'],
+                "average_processing_time_per_frame": avg_processing_time,
+                "frames_per_second": 1.0 / avg_processing_time if avg_processing_time > 0 else 0
+            },
+            "detection_statistics": {
+                "total_detections": self.performance_stats['total_detections'],
+                "detection_breakdown": dict(self.performance_stats['detection_breakdown']),
+                "average_detections_per_frame": (self.performance_stats['total_detections'] / 
+                                               max(1, self.performance_stats['frames_processed']))
+            },
+            "tracking_statistics": {
+                "unique_tracks": len(set(
+                    obj.obj_id for result in self.tracking_results for obj in result.boxes
+                )),
+                "track_duration_analysis": self._analyze_track_durations(),
+                "motion_classification_summary": self._summarize_motion_classification()
+            },
+            "configuration": self.config
+        }
+
+        # Save comprehensive summary
+        summary_path = self.output_dir / "comprehensive_summary.json"
+        with open(summary_path, 'w') as f:
+            json.dump(summary, f, indent=2)
+
+        logger.info(f"Exported comprehensive summary to {summary_path}")
+        
+    def _analyze_track_durations(self) -> Dict[str, float]:
+        track_durations = defaultdict(list)
+        
+        for results in self.tracking_results:
+            for obj in results.boxes:
+                track_durations[obj.obj_id].append(results.timestamp)
+                
+        durations = []
+        for track_id, timestamps in track_durations.items():
+            if len(timestamps)>1:
+                duration = max(timestamps) - min(timestamps)
+                durations.append(duration)
+                
+        if not durations:
+            return {"average": 0.0, "median": 0.0, "max": 0.0, "min": 0.0}
+
+        return {
+            "average": float(np.mean(durations)),
+            "median": float(np.median(durations)),
+            "max": float(np.max(durations)),
+            "min": float(np.min(durations)),
+            "total_tracks": len(durations)
+        }
+        
+    def _summarize_motion_classification(self) -> Dict[str, int]:
+        classification_counts = defaultdict(int)
+
+        for result in self.tracking_results:
+            for obj in result.boxes:
+                classification_counts[obj.obj_type.value] += 1
+
+        return dict(classification_counts)
