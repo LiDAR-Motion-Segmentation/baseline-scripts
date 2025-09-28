@@ -235,6 +235,38 @@ python3 scalabel_format_files/generate_point_cloud_list.py /path/to/ply/files
 
 ![alt text](./assets/Screenshot%20from%202025-09-04%2018-07-29.png)
 
+## Manual refinement pipeline with semi-automation
+- codes for pointcloud tracking are present in `pointcloud_tracking` directory
+
+![alt text](./assets/flowchart1.png)
+![alt text](./assets/flowchart2.png) 
+
+```bash
+# Clone Open3DSOT repository
+git clone https://github.com/Ghostish/Open3DSOT.git
+cd Open3DSOT
+
+# Download M2Track pretrained models
+mkdir -p pretrained_models
+wget -O pretrained_models/mmtrack_kitti_pedestrian.ckpt \
+  "https://github.com/Ghostish/Open3DSOT/releases/download/v1.0/mmtrack_kitti_pedestrian.ckpt"
+
+# Basic usage
+python pointcloud_tracking.py /path/to/pcd/directory --output ./results
+
+# With custom parameters
+python pointcloud_tracking.py /path/to/pcd/directory \
+    --output ./results \
+    --motion-threshold 0.15 \
+    --verbose
+
+# Enhanced version with parallel processing
+python enhanced_pointcloud_tracking.py /path/to/pcd/directory \
+    --output ./results \
+    --workers 4 \
+    --config config.json
+```
+
 ## Hardware setup for data recording
 ![alt text](./assets/Screenshot%20from%202025-09-11%2011-34-39.png)
 - Kangaroo X2 Motion controller
