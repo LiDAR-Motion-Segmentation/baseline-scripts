@@ -233,6 +233,22 @@ python3 scalabel_format_files/generate_point_cloud_list.py /path/to/ply/files
 - [SUSTechPoints-V2](https://github.com/s0um0r0y/SUSTechPOINTS-v2) have been modified with custom classes in the repo, please use that for custom labeling with mobile robot, moving people and static people labels.
 - Please change the `sustech_format_files` in the code base to see an option for the mobile robot scenario
 
+```
+├── calib
+│   └── camera
+|         └── CAMERA1.json
+|         └── CAMERA2.json
+├── camera
+│   ├── CAMERA1
+|         └── 000000.png
+│   └── CAMERA2
+|         └── 000000.png
+├── label
+|     └── 000000.json
+└── lidar
+     └── 000000.pcd
+```
+
 ![alt text](./assets/Screenshot%20from%202025-09-04%2018-07-29.png)
 
 ## Manual refinement pipeline with semi-automation
