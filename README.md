@@ -234,6 +234,7 @@ python3 scalabel_format_files/generate_point_cloud_list.py /path/to/ply/files
 - Please change the `sustech_format_files` in the code base to see an option for the mobile robot scenario
 
 ```
+date
 ├── calib
 │   └── camera
 |         └── CAMERA1.json
