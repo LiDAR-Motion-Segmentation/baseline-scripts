@@ -1,5 +1,6 @@
 *.json
 *.pt
+*.pth
 /bag_annotation
 /annotation_sam2
 !devcontainer.json
