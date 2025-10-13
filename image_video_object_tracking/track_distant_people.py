@@ -59,7 +59,22 @@ def process_frame(
         overlap_height_ratio=0.2,
         overlap_width_ratio=0.2,
     )
-    detections = sv.Detections.from_sahi(sahi_result)
+    xyxy_list = []
+    confidence_list = []
+    class_id_list = []
+    
+    if sahi_result.object_prediction_list:
+        for pred in sahi_result.object_prediction_list:
+            xyxy_list.append(pred.bbox.to_xyxy())
+            confidence_list.append(pred.score.value)
+            class_id_list.append(pred.category.id)
+            
+    detections = sv.Detections(
+        xyxy=np.array(xyxy_list),
+        confidence=np.array(confidence_list),
+        class_id=np.array(class_id_list).astype(int)   
+    )
+    
     person_detections = detections[detections.class_id == 0]
     tracker_results = yolo_tracker.track(source=frame, persist=True, boxes=person_detections.xyxy)
     
