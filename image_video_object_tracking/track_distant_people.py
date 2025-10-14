@@ -13,17 +13,17 @@ from segment_anything_hq import SamPredictor, sam_model_registry
 
 USE_CUDA = torch.cuda.is_available()
 DEVICE = torch.device("cuda" if USE_CUDA else "cpu")
-YOLO_WEIGHTS_PATH = Path("weights/yolov8l.pt")
+YOLO_WEIGHTS_PATH = Path("/home/soumoroy/baseline-scripts/weights/yolov8l.pt")
 GROUNDING_DINO_CONFIG_PATH = "GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py"
-GROUNDING_DINO_WEIGHTS_PATH = Path("weights/groundingdino_swint_ogc.pth")
-SAM_WEIGHTS_PATH = Path("weights/sam_hq_vit_h.pth")
+GROUNDING_DINO_WEIGHTS_PATH = Path("/home/soumoroy/baseline-scripts/weights/groundingdino_swint_ogc.pth")
+SAM_WEIGHTS_PATH = Path("/home/soumoroy/baseline-scripts/weights/sam_hq_vit_h.pth")
 SAM_MODEL_TYPE = "vit_h"
 
 def load_yolo_sahi_model():
     print("Loading YOLOv8 model for SAHI")
     detection_model = AutoDetectionModel.from_pretrained(
         model_type = 'yolov8',
-        model_path = YOLO_WEIGHTS_PATH,
+        model_path = str(YOLO_WEIGHTS_PATH),
         confidence_threshold = 0.3,
         device=DEVICE,
     )
@@ -40,7 +40,12 @@ def load_grounding_dino_model():
 
 def load_sam_model():
     print("Loading SAM2 model")
-    sam = sam_model_registry[SAM_MODEL_TYPE](checkpoint=SAM_WEIGHTS_PATH).to(device=DEVICE)
+    # model_checkpoint = torch.load(SAM_WEIGHTS_PATH, map_location=DEVICE)
+    # sam = sam_model_registry[SAM_MODEL_TYPE](checkpoint=model_checkpoint).to(device=DEVICE)
+    sam = sam_model_registry[SAM_MODEL_TYPE]()
+    state_dict = torch.load(SAM_WEIGHTS_PATH, map_location='cpu')
+    sam.load_state_dict(state_dict)
+    sam.to(device=DEVICE)
     predictor = SamPredictor(sam)
     return predictor
 
@@ -76,7 +81,7 @@ def process_frame(
     )
     
     person_detections = detections[detections.class_id == 0]
-    tracker_results = yolo_tracker.track(source=frame, persist=True, boxes=person_detections.xyxy)
+    tracker_results = yolo_tracker.track(source=frame, persist=True, show_boxes=True, device=DEVICE)
     
     if tracker_results and len(tracker_results[0].boxes.id) > 0:
         tracked_detections = sv.Detections(
