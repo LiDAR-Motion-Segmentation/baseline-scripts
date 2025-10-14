@@ -1,4 +1,4 @@
-*.json
+# *.json
 *.pt
 *.pth
 /bag_annotation
