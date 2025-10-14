@@ -16,8 +16,8 @@ DEVICE = torch.device("cuda" if USE_CUDA else "cpu")
 YOLO_WEIGHTS_PATH = Path("/home/soumoroy/baseline-scripts/weights/yolov8l.pt")
 GROUNDING_DINO_CONFIG_PATH = "GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py"
 GROUNDING_DINO_WEIGHTS_PATH = Path("/home/soumoroy/baseline-scripts/weights/groundingdino_swint_ogc.pth")
-SAM_WEIGHTS_PATH = Path("/home/soumoroy/baseline-scripts/weights/sam_hq_vit_h.pth")
-SAM_MODEL_TYPE = "vit_h"
+SAM_WEIGHTS_PATH = Path("/home/soumoroy/baseline-scripts/weights/sam_hq_vit_b.pth")
+SAM_MODEL_TYPE = "vit_b"
 
 def load_yolo_sahi_model():
     print("Loading YOLOv8 model for SAHI")
@@ -101,7 +101,7 @@ def process_frame(
                 caption="person",
                 box_threshold=0.2,
                 text_threshold=0.2,
-                custom_box=torch.Tensor(detection_xyxy).to(DEVICE)
+                # custom_box=torch.Tensor(detection_xyxy).to(DEVICE)
             )
             if len(refined_boxes) > 0:
                 refined_box = refined_boxes[0].cpu().numpy()
