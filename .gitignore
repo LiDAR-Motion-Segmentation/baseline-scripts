@@ -4,3 +4,4 @@
 /bag_annotation
 /annotation_sam2
 !devcontainer.json
+/output_dir
