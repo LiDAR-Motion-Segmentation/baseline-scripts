@@ -1,8 +1,9 @@
 # baseline-scripts for temporal-point-transformer
 1) Extra utility codes for adapting `Motion Object Segmentation Algoritms` for JRDB dataset and semantic kitty dataset. 
-2) Custom Data Parsing from ROSbags and Data Annotation pipeline in `Semantic Kitty` format for converting an rosbag into annotated data for `Motion Object Segmentation Algoritms` using YOLOv8 + SAM2.
+2) Custom Data Parsing from ROSbags and Data Annotation pipeline in `Semantic Kitty` format for converting an rosbag into annotated data for `Motion Object Segmentation Algoritms` using `YOLOv8 + SAM2`.
 3) Hardware setup for custom data collection
 4) Docker devcontainer and RVIZ2 setup for visualization
+5) Image based multi object tracking using `YOLOv11 + SAM2 + GroundingDINO` for detecting and tracking people walking at a distance in equirectangular images
 
 ## semantic kitty scripts
 - the files are placed in `training_script_semantic_kitty` directory
@@ -320,6 +321,16 @@ Login Succeeded
 
 ![!alt text](./assets/Screenshot%20from%202025-09-12%2017-40-00.png)
 
+## Image based multi object tracking (work in progress)
+- The idea here is to use `yolov8/yolo11 + SAM2 + groundingDINO` to track people present at a distance to make the annotation pipeline more robust for equirectangular images.
+- ensure that the weight folder has all the model checkpoints which can be setup using `weights/setup.sh`.
+```bash
+python3 track_distant_people.py --input_dir input_frames --output_dir output_frames
+
+# using ByteTrack
+python3 track_distant_people_ByteTrack.py --input_dir input_frames --output_dir output_frames
+```
+
 ## Acknowledgment
 - I have used [temporal-point-transformer](https://github.com/LiDAR-Motion-Segmentation/temporal-point-transformer) model to train and evaluate on.
 - I would like to thank [Tarun Ramakrishnan](https://github.com/rtarun1) and [Aadith warrier](https://github.com/aadith-warrier) for their support especially with the hardware.
@@ -344,4 +355,22 @@ Login Succeeded
   pages={1108-1115},
   doi={10.1109/IV47402.2020.9304562}
   } 
+
+@inproceedings{liu2024grounding,
+  title={Grounding dino: Marrying dino with grounded pre-training for open-set object detection},
+  author={Liu, Shilong and Zeng, Zhaoyang and Ren, Tianhe and Li, Feng and Zhang, Hao and Yang, Jie and Jiang, Qing and Li, Chunyuan and Yang, Jianwei and Su, Hang and others},
+  booktitle={European conference on computer vision},
+  pages={38--55},
+  year={2024},
+  organization={Springer}
+}
+
+@article{akyon2022sahi,
+  title={Slicing Aided Hyper Inference and Fine-tuning for Small Object Detection},
+  author={Akyon, Fatih Cagatay and Altinuc, Sinan Onur and Temizel, Alptekin},
+  journal={2022 IEEE International Conference on Image Processing (ICIP)},
+  doi={10.1109/ICIP46576.2022.9897990},
+  pages={966-970},
+  year={2022}
+}
 ```
