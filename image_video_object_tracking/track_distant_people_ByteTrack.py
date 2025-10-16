@@ -22,12 +22,10 @@ def initialize_models():
         confidence_threshold=0.3,
         device=DEVICE,
     )
-    # sam = sam_model_registry[SAM_MODEL_TYPE](checkpoint=SAM_CHECKPOINT_PATH).to(device=DEVICE)
     sam = sam_model_registry[SAM_MODEL_TYPE]()
     state_dict = torch.load(SAM_CHECKPOINT_PATH, map_location='cpu')
     sam.load_state_dict(state_dict)
     sam.to(device=DEVICE)
-    predictor = SamPredictor(sam)
     sam_predictor = SamPredictor(sam)
     print("models have been sucessfully initialized")
     return detection_model, sam_predictor
@@ -43,6 +41,8 @@ def main(input_dir: str, output_dir: str):
     tracker = sv.ByteTrack()
     box_annotator = sv.BoxAnnotator(thickness=2)
     mask_annotator = sv.MaskAnnotator(opacity=0.4)
+    label_annotator = sv.LabelAnnotator(text_scale=0.6, 
+                                        text_color=sv.Color.BLACK) 
     
     for i, image_path in enumerate(image_paths):
         print(f"Processing frame {i+1}/{len(image_paths)}: {image_path.name}")
@@ -103,8 +103,10 @@ def main(input_dir: str, output_dir: str):
             
             annotated_frame = frame.copy()
             annotated_frame = mask_annotator.annotate(scene=annotated_frame, detections=tracked_detections)
-            # labels = [f"#{tracker_id}" for tracker_id in tracked_detections.tracker_id]
             annotated_frame = box_annotator.annotate(scene=annotated_frame, detections=tracked_detections)
+            labels = [f"#{tracker_id}" for tracker_id in tracked_detections.tracker_id]
+            annotated_frame = label_annotator.annotate(scene=annotated_frame,detections=tracked_detections,labels=labels)
+            
             cv2.imwrite(str(output_path_obj / image_path.name), annotated_frame)
         else:
             cv2.imwrite(str(output_path_obj / image_path.name), frame)
