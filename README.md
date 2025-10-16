@@ -330,6 +330,7 @@ python3 track_distant_people.py --input_dir input_frames --output_dir output_fra
 # using ByteTrack
 python3 track_distant_people_ByteTrack.py --input_dir input_frames --output_dir output_frames
 ```
+![alt text](/assets/000003.png)
 
 ## Acknowledgment
 - I have used [temporal-point-transformer](https://github.com/LiDAR-Motion-Segmentation/temporal-point-transformer) model to train and evaluate on.

@@ -1,6 +1,7 @@
 # *.json
 *.pt
 *.pth
+/image_video_object_tracking/output_dir
 /bag_annotation
 /annotation_sam2
 !devcontainer.json

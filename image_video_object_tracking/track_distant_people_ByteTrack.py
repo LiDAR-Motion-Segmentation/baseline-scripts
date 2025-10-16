@@ -75,6 +75,7 @@ def main(input_dir: str, output_dir: str):
             class_id=np.array(class_id_list).astype(int)   
         )
         detections = detections[detections.class_id == 0]
+        detections = detections.with_nmm(threshold=0.5)
 
         if len(detections.xyxy) == 0:
             cv2.imwrite(str(output_path_obj / image_path.name), frame)
