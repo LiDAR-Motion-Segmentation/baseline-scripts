@@ -326,9 +326,8 @@ Login Succeeded
 - ensure that the weight folder has all the model checkpoints which can be setup using `weights/setup.sh`.
 - New code with `ByteTrack` with `SAHI+NMS` integration for better tracking has been added
 ```bash
-
 # setup
-pip install --upgrade ultralytics sahi supervision segment-anything-hq opencv-python numpy
+pip install --upgrade ultralytics sahi supervision segment-anything-hq opencv-python numpy pyyaml
 
 python3 track_distant_people.py --input_dir input_frames --output_dir output_frames
 

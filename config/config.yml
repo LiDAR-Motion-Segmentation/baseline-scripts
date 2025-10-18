@@ -1,0 +1,20 @@
+paths:
+  yolo_models: "/home/soumoroy/baseline-scripts/weights/yolo8l.pt"
+  sam_cehckpoint: "/home/soumoroy/baseline-scripts/weights/sam_hq_vit_b.pth"
+
+models:
+  sam_model_type: "vit_b"
+  device: "cuda"
+
+sahi_params:
+  slice_height: 512
+  slice_width: 512
+  overlap_ratio: 0.2
+
+detection_params:
+  confidence_threshold: 0.3
+  nms_threshold: 0.5
+
+tracking_params:
+  movement_threshold_pixels: 5
+  static_frame_count_threshold: 3
