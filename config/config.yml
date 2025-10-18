@@ -1,6 +1,6 @@
 paths:
-  yolo_models: "/home/soumoroy/baseline-scripts/weights/yolo8l.pt"
-  sam_cehckpoint: "/home/soumoroy/baseline-scripts/weights/sam_hq_vit_b.pth"
+  yolo_model: "/home/soumoroy/baseline-scripts/weights/yolov8l.pt"
+  sam_checkpoint: "/home/soumoroy/baseline-scripts/weights/sam_hq_vit_b.pth"
 
 models:
   sam_model_type: "vit_b"
