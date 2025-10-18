@@ -324,7 +324,12 @@ Login Succeeded
 ## Image based multi object tracking (work in progress)
 - The idea here is to use `yolov8/yolo11 + SAM2 + groundingDINO` to track people present at a distance to make the annotation pipeline more robust for equirectangular images.
 - ensure that the weight folder has all the model checkpoints which can be setup using `weights/setup.sh`.
+- New code with `ByteTrack` with `SAHI+NMS` integration for better tracking has been added
 ```bash
+
+# setup
+pip install --upgrade ultralytics sahi supervision segment-anything-hq opencv-python numpy
+
 python3 track_distant_people.py --input_dir input_frames --output_dir output_frames
 
 # using ByteTrack
