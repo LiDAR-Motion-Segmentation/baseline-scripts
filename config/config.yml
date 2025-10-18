@@ -4,7 +4,7 @@ paths:
 
 models:
   sam_model_type: "vit_b"
-  device: "cuda"
+  device: "cuda:0"
 
 sahi_params:
   slice_height: 512
