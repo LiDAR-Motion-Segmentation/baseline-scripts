@@ -325,6 +325,7 @@ Login Succeeded
 - The idea here is to use `yolov8/yolo11 + SAM2 + groundingDINO` to track people present at a distance to make the annotation pipeline more robust for equirectangular images.
 - ensure that the weight folder has all the model checkpoints which can be setup using `weights/setup.sh`.
 - New code with `ByteTrack` with `SAHI+NMS` integration for better tracking has been added
+- Code for automated annotation is present in `advanced_annotater.py` which will generate `labels` of  `people.static` or `people.moving` in the form of json files with bounding box in `psr` format 
 ```bash
 # setup
 pip install --upgrade ultralytics sahi supervision segment-anything-hq opencv-python numpy pyyaml
@@ -333,8 +334,12 @@ python3 track_distant_people.py --input_dir input_frames --output_dir output_fra
 
 # using ByteTrack
 python3 track_distant_people_ByteTrack.py --input_dir input_frames --output_dir output_frames
+
+# using automated annotation script
+# config for this code is present in config/config.yml
+python advanced_annotator.py --data /path/to/your/frames --output_dir /path/to/your/results --config /path/to/your/config
 ```
-![alt text](/assets/000003.png)
+![alt text](/assets/000030.png)
 
 ## Acknowledgment
 - I have used [temporal-point-transformer](https://github.com/LiDAR-Motion-Segmentation/temporal-point-transformer) model to train and evaluate on.
