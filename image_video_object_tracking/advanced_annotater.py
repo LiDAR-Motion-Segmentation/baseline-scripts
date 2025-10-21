@@ -120,6 +120,33 @@ def track_and_annotate(data: str | Path,
             json_frame_data = []
             custom_labels = []
             
+            # experimenting a mask reshaping functionality    
+            if len(tracked_detections) > 0:
+                H, W, _ = frame.shape
+                scale = 1024/ max(H, W)
+                frame_for_sam = cv2.resize(frame, (int(W * scale), int(H * scale)))
+                sam_predictor.set_image(frame_for_sam)
+                
+                scaled_boxes = tracked_detections.xyxy * scale
+                masks_tensor, _, _ = sam_predictor.predict_torch(point_coords= None,
+                                                                point_labels= None,
+                                                                boxes= torch.tensor(scaled_boxes).to(device),
+                                                                multimask_output= False)
+                masks_np = masks_tensor.cpu().numpy()
+                num_detections = len(tracked_detections)
+                final_masks = np.zeros((num_detections, H, W), dtype=bool)
+                
+                for idx, scaled_mask in enumerate(masks_np):
+                    mask_2d = scaled_mask.squeeze()
+                    resize_mask = cv2.resize(
+                        mask_2d.astype(np.uint8),
+                        (W, H),
+                        interpolation=cv2.INTER_NEAREST
+                    ).astype(bool)
+                    final_masks[idx] = resize_mask
+                    
+                tracked_detections.mask = final_masks
+            
             with open(labels_output_dir / f"{image_path.stem}.txt", "w", encoding="utf-8") as f_text:
                 for detection_idx in range(len(tracked_detections)):
                     bbox = tracked_detections.xyxy[detection_idx]
@@ -170,33 +197,6 @@ def track_and_annotate(data: str | Path,
                         
             with open(json_output_dir / f"{image_path.stem}.json", "w", encoding="utf-8") as f_json:
                 json.dump(json_frame_data, f_json, indent=2)    
-                
-            # experimenting a mask reshaping functionality    
-            if len(tracked_detections) > 0:
-                H, W, _ = frame.shape
-                scale = 1024/ max(H, W)
-                frame_for_sam = cv2.resize(frame, (int(W * scale), int(H * scale)))
-                sam_predictor.set_image(frame_for_sam)
-                
-                scaled_boxes = tracked_detections.xyxy * scale
-                masks_tensor, _, _ = sam_predictor.predict_torch(point_coords= None,
-                                                                point_labels= None,
-                                                                boxes= torch.tensor(scaled_boxes).to(device),
-                                                                multimask_output= False)
-                masks_np = masks_tensor.cpu().numpy()
-                num_detections = len(tracked_detections)
-                final_masks = np.zeros((num_detections, H, W), dtype=bool)
-                
-                for idx, scaled_mask in enumerate(masks_np):
-                    mask_2d = scaled_mask.squeeze()
-                    resize_mask = cv2.resize(
-                        mask_2d.astype(np.uint8),
-                        (W, H),
-                        interpolation=cv2.INTER_NEAREST
-                    ).astype(bool)
-                    final_masks[idx] = resize_mask
-                    
-                tracked_detections.mask = final_masks
             
             annotated_frame = frame.copy()
             annotated_frame = mask_annotator.annotate(scene=annotated_frame, detections=tracked_detections)
