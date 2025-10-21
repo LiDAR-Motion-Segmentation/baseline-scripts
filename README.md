@@ -341,12 +341,13 @@ python3 track_distant_people_ByteTrack.py --input_dir input_frames --output_dir 
 python3 advanced_annotator.py --data /path/to/your/frames --output_dir /path/to/your/results --config /path/to/your/config
 
 # to backproject the sam mask to pointclouds use
-python3 sam_backproject.py \
+python sam_backproject.py \
     --images ./images \
     --pcds ./pcds \
     --labels ./labels \
     --calib ./calibration.yaml \
-    --output ./sam_projected_output
+    --img_output ./sam_image_overlay \
+    --pcd_output ./sam_lidar_output
 ```
 ![alt text](/assets/000058.png)
 
