@@ -6,7 +6,7 @@ import yaml
 from pathlib import Path
 import argparse
 
-def load_calibration_yaml(calib_path: str | Path) -> np.ndarray:
+def load_calibration_yaml(calib_path: str | Path) -> tuple[np.ndarray,np.ndarray]:
     with open(calib_path, 'r') as f:
         calib = yaml.safe_load(f)
     trans = np.array(calib['extrinsics']['translation'])
@@ -22,7 +22,7 @@ def load_calibration_yaml(calib_path: str | Path) -> np.ndarray:
     T[:3,3] = trans
     return T, calib
 
-def project_lidar_to_equirect(xyz_points, T_lidar_to_cam, intrinsics):
+def project_lidar_to_equirect(xyz_points, T_lidar_to_cam, intrinsics) -> tuple[np.ndarray,np.ndarray]:
     points_hom = np.hstack([xyz_points, np.ones((xyz_points.shape[0],1))])
     points_cam = (T_lidar_to_cam @ points_hom.T).T[:,:3]
     h = intrinsics['height']
@@ -82,8 +82,8 @@ def process(image_path, pcd_path, label_path, calib_path, output_dir):
     
     points_masked_indices = np.where(valid_mask)[0][inside_mask]
     points_masked = xyz[points_masked_indices]
-    out_masked_fn = os.path.join(output_dir, f"{Path(image_path).stem}_sam_lidar_segmented.npy")
-    np.save(out_masked_fn, points_masked)
+    # out_masked_fn = os.path.join(output_dir, f"{Path(image_path).stem}_sam_lidar_segmented.npy")
+    # np.save(out_masked_fn, points_masked)
     colors = np.zeros_like(xyz)
     colors[:] = [0,1,0]
     colors[points_masked_indices] = [1,0,0]
