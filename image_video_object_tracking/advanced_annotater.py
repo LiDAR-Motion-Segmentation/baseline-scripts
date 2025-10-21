@@ -11,6 +11,7 @@ from sahi import AutoDetectionModel
 from sahi.predict import get_sliced_prediction
 from segment_anything_hq import SamPredictor, sam_model_registry
 import argparse
+import time
 
 def get_center_point(bbox: np.ndarray) -> tuple[float, float]:
     return (bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2
@@ -178,7 +179,7 @@ def track_and_annotate(data: str | Path,
                 sam_predictor.set_image(frame_for_sam)
                 
                 scaled_boxes = tracked_detections.xyxy * scale
-                mask_tensor, _, _ = sam_predictor.predict_torch(point_coords= None,
+                masks_tensor, _, _ = sam_predictor.predict_torch(point_coords= None,
                                                                 point_labels= None,
                                                                 boxes= torch.tensor(scaled_boxes).to(device),
                                                                 multimask_output= False)
@@ -209,7 +210,7 @@ def track_and_annotate(data: str | Path,
             if "CUDA out of memory" in str(e):
                 print(f"CUDA out of memory on frame {image_path.name}, skipping...")
                 torch.cuda.empty_cache()
-                import time; time.sleep(10)  # small pause to let VRAM clear
+                time.sleep(10)  # small pause to let VRAM clear
                 continue
             else:
                 print(f"RuntimeError on {image_path.name}: {e}")
