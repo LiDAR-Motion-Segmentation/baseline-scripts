@@ -54,7 +54,7 @@ def visualize_polygons(image, polygons, mask, out_path):
     blended = cv2.addWeighted(overlay, alpha, image, 1-alpha,0)
     cv2.imwrite(out_path, blended)
     
-def process(image_path, pcd_path, label_path, calib_path, output_dir):
+def process(image_path, pcd_path, label_path, calib_path, img_output_dir, pcd_output_dir):
     image = cv2.imread(str(image_path))
     pc = o3d.io.read_point_cloud(str(pcd_path))
     xyz = np.asarray(pc.points)
@@ -71,8 +71,8 @@ def process(image_path, pcd_path, label_path, calib_path, output_dir):
             polygons.append(arr.reshape(-1,2))
     mask = polygon_to_mask(polygons,image.shape[:2])
     
-    Path(output_dir).mkdir(exist_ok=True)
-    vis_path = os.path.join(output_dir, f"{Path(image_path).stem}_sam_overlay.png")
+    Path(img_output_dir).mkdir(exist_ok=True)
+    vis_path = os.path.join(img_output_dir, f"{Path(image_path).stem}_sam_overlay.png")
     visualize_polygons(image, polygons, mask, vis_path)
     
     pixel_coords, valid_mask = project_lidar_to_equirect(xyz, T_lidar_to_camera, intrinsics)
@@ -84,13 +84,15 @@ def process(image_path, pcd_path, label_path, calib_path, output_dir):
     points_masked = xyz[points_masked_indices]
     # out_masked_fn = os.path.join(output_dir, f"{Path(image_path).stem}_sam_lidar_segmented.npy")
     # np.save(out_masked_fn, points_masked)
+    
     colors = np.zeros_like(xyz)
     colors[:] = [0,1,0]
     colors[points_masked_indices] = [1,0,0]
     color_pcd = o3d.geometry.PointCloud()
     color_pcd.points = o3d.utility.Vector3dVector(xyz)
     color_pcd.colors = o3d.utility.Vector3dVector(colors)
-    o3d.io.write_point_cloud(os.path.join(output_dir, f"{Path(image_path).stem}.pcd"), color_pcd)
+    Path(pcd_output_dir).mkdir(exist_ok=True)
+    o3d.io.write_point_cloud(os.path.join(pcd_output_dir, f"{Path(image_path).stem}.pcd"), color_pcd)
     print(f"Completed {image_path}")
 
 def main():
@@ -99,7 +101,8 @@ def main():
     parser.add_argument('--pcds', required=True, help='Directory with PCD files')
     parser.add_argument('--labels', required=True, help='Directory with polygon labels (.txt)')
     parser.add_argument('--calib', required=True, help='Calibration YAML file')
-    parser.add_argument('--output', required=True, help='Output directory')
+    parser.add_argument('--img_output', required=True, help='Output directory for images')
+    parser.add_argument('--pcd_output', required=True, help='Output directory for PCD')
     args = parser.parse_args()
     
     image_files = sorted(list(Path(args.images).glob("*.png")))
@@ -107,7 +110,7 @@ def main():
     label_files = sorted(list(Path(args.labels).glob("*.txt")))
     assert len(image_files) == len(pcd_files) == len(label_files)
     for img,pcd,lbl in zip(image_files, pcd_files, label_files):
-        process(img, pcd, lbl, args.calib, args.output)
+        process(img, pcd, lbl, args.calib, args.img_output, args.pcd_output)
         
 if __name__ == "__main__":
     main()
