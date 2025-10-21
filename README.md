@@ -326,6 +326,7 @@ Login Succeeded
 - ensure that the weight folder has all the model checkpoints which can be setup using `weights/setup.sh`.
 - New code with `ByteTrack` with `SAHI+NMS` integration for better tracking has been added
 - Code for automated annotation is present in `advanced_annotater.py` which will generate `labels` of  `people.static` or `people.moving` in the form of json files with bounding box in `psr` format 
+- For running `advanced_annotater.py` I would highly suggest to use a GPU with atleast 16 gb vram like I am using `Nvidia A4000` for good quality of detection and segmentation although in the config I do provide the option of using CPU
 ```bash
 # setup
 pip install --upgrade ultralytics sahi supervision segment-anything-hq opencv-python numpy pyyaml
@@ -339,7 +340,7 @@ python3 track_distant_people_ByteTrack.py --input_dir input_frames --output_dir 
 # config for this code is present in config/config.yml
 python advanced_annotator.py --data /path/to/your/frames --output_dir /path/to/your/results --config /path/to/your/config
 ```
-![alt text](/assets/000030.png)
+![alt text](/assets/000058.png)
 
 ## Acknowledgment
 - I have used [temporal-point-transformer](https://github.com/LiDAR-Motion-Segmentation/temporal-point-transformer) model to train and evaluate on.
