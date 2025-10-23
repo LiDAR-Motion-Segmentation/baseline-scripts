@@ -350,6 +350,15 @@ python sam_backproject.py \
     --calib ./calibration.yaml \
     --img_output ./sam_image_overlay \
     --pcd_output ./sam_lidar_output
+
+# new version of backprojection code using ros2_numpy
+pip install ros2-numpy
+python sam_backproject_v2.py \
+    --pcd_dir /path/to/your/pcd_files \
+    --image_dir /path/to/your/images \
+    --label_dir /path/to/your/labels \
+    --output_dir /path/to/save/results \
+    --config /calibration.yml
 ```
 ![alt text](/assets/000058.png)
 
