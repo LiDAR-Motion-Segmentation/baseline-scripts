@@ -360,7 +360,7 @@ python sam_backproject_v2.py \
     --output_dir /path/to/save/results \
     --config /calibration.yml
 ```
-![alt text](/assets/000058.png)
+![alt text](./assets/000058.png)
 
 ## Acknowledgment
 - I have used [temporal-point-transformer](https://github.com/LiDAR-Motion-Segmentation/temporal-point-transformer) model to train and evaluate on.

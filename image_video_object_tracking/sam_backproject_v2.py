@@ -35,12 +35,10 @@ def process_frame(pcd_path: Path,
     segmentation_mask = np.zeros((h, w), dtype=np.uint8)
     overlay = image.copy()
     for poly_data in all_polygons:
-        if len(poly_data) >= 3:
-            normalized_points = poly_data[1:].reshape(-1,2)
-            pixel_points = (normalized_points * np.array([w, h]).astype(np.int32))
-        if pixel_points.size > 0:
-            cv2.fillPoly(overlay, [pixel_points], color=(0,0,255))
-            cv2.fillPoly(segmentation_mask, [pixel_points], color=1)
+        normalized_points = poly_data[1:].reshape(-1,2)
+        pixel_points = (normalized_points * np.array([w, h])).astype(np.int32)
+        cv2.fillPoly(overlay, [pixel_points], color=(0,0,255))
+        cv2.fillPoly(segmentation_mask, [pixel_points], color=1)
         
     alpha = 0.4
     final_image = cv2.addWeighted(overlay, alpha, image, 1-alpha,0)
@@ -75,7 +73,8 @@ def process_frame(pcd_path: Path,
     person_points = xyz_points[person_indices]
     np.save(str(output_dir / "sam_lidar_segmented" / f"{pcd_path.stem}.npy"), person_points)
     
-    colors = np.full((len(xyz_points, 3), [0.0, 1.0, 0.0])) # green for non person
+    length_xyz_points = len(xyz_points)
+    colors = np.full((length_xyz_points, 3), [0.0, 1.0, 0.0]) # green for non person
     colors[person_indices] = [1.0, 0.0, 0.0] # red for person
     colored_pcd = o3d.geometry.PointCloud()
     colored_pcd.points = o3d.utility.Vector3dVector(xyz_points)
