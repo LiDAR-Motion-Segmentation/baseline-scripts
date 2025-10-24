@@ -340,7 +340,25 @@ python3 track_distant_people_ByteTrack.py --input_dir input_frames --output_dir 
 
 # using automated annotation script
 # config for this code is present in config/config.yml
-python3 advanced_annotator.py --data /path/to/your/frames --output_dir /path/to/your/results --config /path/to/your/config
+python3 advanced_annotator.py \ 
+    --data /path/to/your/frames \
+    --output_dir /path/to/your/results \
+    --config /path/to/your/config
+
+# Directory structure after annotations
+project/
+├── labels_txt/       # polygons from SAM
+│   ├── 000000.txt
+│   ├── 000001.txt
+│   └── ...
+├── labels_json/      # labels for SUSTechpoints refining
+│   ├── 000000.json
+│   ├── 000001.json
+│   └── ...
+├── visualizations/   # visualization of bbox+tracking id+moving/non-moving
+│   ├── 000000.png
+│   ├── 000001.png
+│   └── ...
 
 # to backproject the sam mask to pointclouds use
 python sam_backproject.py \
@@ -352,13 +370,46 @@ python sam_backproject.py \
     --pcd_output ./sam_lidar_output
 
 # new version of backprojection code using ros2_numpy
-pip install ros2-numpy
+# note: works only on ubuntu 22.04 , try using the devcontainer while running this command
+pip install ros2-numpy 
 python sam_backproject_v2.py \
     --pcd_dir /path/to/your/pcd_files \
     --image_dir /path/to/your/images \
     --label_dir /path/to/your/labels \
     --output_dir /path/to/save/results \
     --config /calibration.yml
+
+# Directory structure after backprojection 
+project/
+├── sam_lidar/      # pointclouds with green background and red colour human segmentation
+│   ├── 000000.pcd
+│   ├── 000001.pcd
+│   └── ...
+├── sam_image/      # to only see the SAM overlay mask
+│   ├── 000000.png
+│   ├── 000001.png
+│   └── ...
+├── sam_lidar_segmented/ 
+│   ├── 000000.npy
+│   ├── 000001.npy
+│   └── ...
+
+# visualizing the bounding box and pointcloud on rerun
+python3 visualize_pcd_bbox_rerun \
+  --pcd_dir ./pointclouds \
+  --json_dir ./annotations_json \
+  --fps 2
+
+# Directory structure 
+project/
+├── pointclouds/
+│   ├── 000000.pcd
+│   ├── 000001.pcd
+│   └── ...
+├── annotations_json/
+│   ├── 000000.json
+│   ├── 000001.json
+│   └── ...
 ```
 ![alt text](./assets/000058.png)
 
@@ -410,5 +461,25 @@ python sam_backproject_v2.py \
   author={Zhang, Yifu and Sun, Peize and Jiang, Yi and Yu, Dongdong and Weng, Fucheng and Yuan, Zehuan and Luo, Ping and Liu, Wenyu and Wang, Xinggang},
   booktitle={Proceedings of the European Conference on Computer Vision (ECCV)},
   year={2022}
+}
+
+@software{RerunSDK,
+  title = {Rerun: A Visualization SDK for Multimodal Data},
+  author = {{Rerun Development Team}},
+  url = {https://www.rerun.io},
+  version = {0.26.1},
+  date = {23/10/2025},
+  year = {2024},
+  publisher = {{Rerun Technologies AB}},
+  address = {Online},
+  note = {Available from https://www.rerun.io/ and https://github.com/rerun-io/rerun}
+}
+
+@misc{wandb,
+title = {Experiment Tracking with Weights and Biases},
+year = {2020},
+note = {Software available from wandb.com},
+url={https://www.wandb.com/},
+author = {Biewald, Lukas},
 }
 ```
