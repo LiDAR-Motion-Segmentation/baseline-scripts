@@ -12,22 +12,36 @@ from sahi.predict import get_sliced_prediction
 from segment_anything_hq import SamPredictor, sam_model_registry
 import argparse
 import time
+import open3d as o3d
+from scipy.spatial.transform import Rotation as R
 
 def get_center_point(bbox: np.ndarray) -> tuple[float, float]:
     return (bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2
 
+def get_transform_matrix(translation: list, rotation_quat: list) -> np.ndarray:
+    transform = np.eye(4)
+    transform[:3, :3] = R.from_quat(rotation_quat).as_matrix()
+    transform[:3, 3] = translation
+    return transform
+
 def track_and_annotate(data: str | Path,
+                       pcd_dir: str | Path,
                        config: dict,
                        output_dir: str | Path | None = None):
     print("initializing models")
     data_path = Path(data)
+    pcd_path = Path(pcd_dir)
+      
+    cfg = {
+        'paths': config['paths'], 
+        'models': config['models'], 
+        'sahi': config['sahi_params'],
+        'detection': config['detection_params'], 
+        'tracking': config['tracking_params'],
+        'calib': config['calibration']
+    }
     
-    paths_cfg = config['paths']
-    models_cfg = config['models']
-    sahi_cfg = config['sahi_params']
-    detection_cfg = config['detection_params']
-    tracking_cfg = config['tracking_params']
-    device = torch.device(models_cfg['device'] or ("cuda" if torch.cuda.is_available() else "cpu"))
+    device = torch.device(cfg['models']['device'] or ("cuda" if torch.cuda.is_available() else "cpu"))
     
     if not output_dir:
         output_dir = data_path.parent / f"{data_path.stem}_advanced_annotations"
@@ -39,16 +53,24 @@ def track_and_annotate(data: str | Path,
     json_output_dir.mkdir(parents=True, exist_ok=True)
     vis_output_dir.mkdir(parents=True, exist_ok=True)
     
+    intr = cfg['calib']['intrinsics']
+    camera_matrix = np.array([[intr['fx'], 0, intr['cx']], 
+                              [0, intr['fy'], intr['cy']], 
+                              [0, 0, 1]])
+    dist_coeffs = np.array(intr['distortion'])
+    extr = cfg['calib']['extrinsics']
+    lidar_to_camera_tf = get_transform_matrix(extr['translation'], extr['rotation'])
+    
     detection_model = AutoDetectionModel.from_pretrained(
         model_type='yolov8', 
-        model_path=paths_cfg['yolo_model'], 
-        confidence_threshold=detection_cfg['confidence_threshold'], 
+        model_path=cfg['paths']['yolo_model'], 
+        confidence_threshold=cfg['detection']['confidence_threshold'], 
         device=device
     )
     
     # using CPU version as of now
-    sam = sam_model_registry[models_cfg['sam_model_type']]()
-    state_dict = torch.load(paths_cfg['sam_checkpoint'], map_location='cpu')
+    sam = sam_model_registry[cfg['models']['sam_model_type']]()
+    state_dict = torch.load(cfg['paths']['sam_checkpoint'], map_location='cpu')
     sam.load_state_dict(state_dict)
     sam.to(device=device)
     sam_predictor = SamPredictor(sam)
@@ -59,7 +81,7 @@ def track_and_annotate(data: str | Path,
     label_annotator = sv.LabelAnnotator(text_scale=0.6, 
                                         text_color=sv.Color.BLACK)
     
-    tracker_history:dict = {}
+    tracker_history = {}
     image_paths = sorted([p for p in data_path.glob("*") if p.suffix.lower() in [".png", ".jpg", ".jpeg"]])
     
     for i, image_path in enumerate(image_paths):
@@ -74,16 +96,22 @@ def track_and_annotate(data: str | Path,
         
         try: 
             frame = cv2.imread(str(image_path))
+            pcd_file = pcd_path / f"{image_path.stem}.pcd"
+            if not pcd_file.exists():
+                print(f"Warning: Point cloud not found for {image_path.name}. Skipping.")
+                continue
+            pcd = o3d.io.read_point_cloud(str(pcd_file))
+            points_3d_lidar = np.asarray(pcd.points)
             if frame is None:
                 continue
             
             sahi_result = get_sliced_prediction(
                 frame,        
                 detection_model,
-                slice_height=sahi_cfg['slice_height'],
-                slice_width=sahi_cfg['slice_width'],
-                overlap_height_ratio=sahi_cfg['overlap_ratio'],
-                overlap_width_ratio=sahi_cfg['overlap_ratio'])
+                slice_height=cfg['sahi']['slice_height'],
+                slice_width=cfg['sahi']['slice_width'],
+                overlap_height_ratio=cfg['sahi']['overlap_ratio'],
+                overlap_width_ratio=cfg['sahi']['overlap_ratio'])
             xyxy_list = []
             confidence_list = []
             class_id_list = []
@@ -101,13 +129,18 @@ def track_and_annotate(data: str | Path,
             )
             
             detections = detections[detections.class_id == 0]
-            detections = detections.with_nms(threshold=detection_cfg['nms_threshold'])
+            detections = detections.with_nms(threshold=cfg['detection']['nms_threshold'])
             
             tracked_detections = tracker.update_with_detections(detections)
             tracked_detections = tracked_detections[tracked_detections.tracker_id != None]
             
             if len(tracked_detections) == 0:
+                cv2.imwrite(str(vis_output_dir / image_path.name), frame)
                 continue
+            
+            points_3d_cam = (np.linalg.inv(lidar_to_camera_tf) @ np.hstack((points_3d_lidar, np.ones((points_3d_lidar.shape[0], 1)))).T).T[:, :3]
+            points_2d, _ = cv2.projectPoints(points_3d_cam, np.zeros(3), np.zeros(3), camera_matrix, dist_coeffs)
+            points_2d = points_2d.squeeze(axis=1)
             
             sam_predictor.set_image(frame)
             masks_tensor, _, _ = sam_predictor.predict_torch(
@@ -115,10 +148,10 @@ def track_and_annotate(data: str | Path,
                 boxes=torch.tensor(tracked_detections.xyxy).to(device),
                 multimask_output=False
             )
-            tracked_detections.mask = masks_tensor.cpu().numpy()
+            tracked_detections.mask = masks_tensor.cpu().numpy() #.squeeze(axis=1)
             
             json_frame_data = []
-            custom_labels = []
+            custom_labels_list = []
             
             # experimenting a mask reshaping functionality    
             if len(tracked_detections) > 0:
@@ -132,12 +165,12 @@ def track_and_annotate(data: str | Path,
                                                                 point_labels= None,
                                                                 boxes= torch.tensor(scaled_boxes).to(device),
                                                                 multimask_output= False)
-                masks_np = masks_tensor.cpu().numpy()
+                masks_np = masks_tensor.cpu().numpy() #.squeeze(axis=1)
                 num_detections = len(tracked_detections)
                 final_masks = np.zeros((num_detections, H, W), dtype=bool)
                 
-                for idx, scaled_mask in enumerate(masks_np):
-                    mask_2d = scaled_mask.squeeze()
+                for idx, mask in enumerate(masks_np):
+                    mask_2d = mask.squeeze()
                     resize_mask = cv2.resize(
                         mask_2d.astype(np.uint8),
                         (W, H),
@@ -148,63 +181,86 @@ def track_and_annotate(data: str | Path,
                 tracked_detections.mask = final_masks
             
             with open(labels_output_dir / f"{image_path.stem}.txt", "w", encoding="utf-8") as f_text:
-                for detection_idx in range(len(tracked_detections)):
-                    bbox = tracked_detections.xyxy[detection_idx]
-                    track_id = tracked_detections.tracker_id[detection_idx]
-                    mask = tracked_detections.mask[detection_idx]
-                    class_id = tracked_detections.class_id[detection_idx]
-                    center = get_center_point(bbox)
-                    obj_status = "people.moving"
+                for idx in range(len(tracked_detections)):
+                    bbox_2d = tracked_detections.xyxy[idx]
+                    track_id = tracked_detections.tracker_id[idx]
+                    class_id = tracked_detections.class_id[idx]
+                    mask_2d_unresized = tracked_detections.mask[idx]
                     
-                    # Squeeze the mask to remove the singleton dimension (from 1xHxW to HxW)
-                    squeezed_mask = mask.squeeze()
+                    u = points_2d[:, 0]
+                    v = points_2d[:, 1]
+                    mask_in_box = (u >= bbox_2d[0]) & (u < bbox_2d[2]) & (v >= bbox_2d[1]) & (v < bbox_2d[3])
+                    point_cluster = points_3d_lidar[mask_in_box]
                     
-                    if track_id in tracker_history:
-                        last_center, static_frames = tracker_history[track_id]
-                        distance = math.dist(center, last_center)
-                        if distance < tracking_cfg['movement_threshold_pixels']:
-                            static_frames += 1
+                    json_obj = {}
+                    if point_cluster.shape[0] >= 4:
+                        cluster_pcd = o3d.geometry.PointCloud()
+                        cluster_pcd.points = o3d.utility.Vector3dVector(point_cluster)
+                        oriented_bbox_3d = cluster_pcd.get_oriented_bounding_box()
+                        center_3d = oriented_bbox_3d.center
+                        scale_3d = oriented_bbox_3d.extent
+                        rotation_matrix_3d = oriented_bbox_3d.R
+                        angle_z = np.arctan2(rotation_matrix_3d[1, 0], rotation_matrix_3d[0, 0])
+                        center_2d = get_center_point(bbox_2d)
+                        obj_status = "people.moving"
+                    
+                        # Squeeze the mask to remove the singleton dimension (from 1xHxW to HxW)
+                        # squeezed_mask = mask.squeeze()
+                    
+                        if track_id in tracker_history:
+                            _, last_center_2d, static_frames = tracker_history[track_id]
+                            distance = math.dist(center_2d, last_center_2d)
+                            if distance < cfg['tracking']['movement_threshold_pixels']:
+                                static_frames += 1
+                            else:
+                                static_frames = 0
+                                
+                            if static_frames >= cfg['tracking']['static_frame_count_threshold']:
+                                obj_status = "people.static"
+                            tracker_history[track_id] = (center_3d, center_2d, static_frames)
                         else:
-                            static_frames = 0
+                            tracker_history[track_id] = (center_3d, center_2d, 0)
                             
-                        if static_frames >= tracking_cfg['static_frame_count_threshold']:
-                            obj_status = "people.static"
-                        tracker_history[track_id] = (center, static_frames)
                     else:
-                        tracker_history[track_id] = (center, 0)
+                        # default for missing cluster
+                        center_3d = np.array([0, 0, 0])
+                        scale_3d = np.array([0, 0, 0])
+                        angle_z = 0
+                        obj_status = "people.static"  # default
                     
-                    custom_labels.append(f"#{track_id} {obj_status.split('.')[1]}")
-                    
-                    box_width = bbox[2] - bbox[0]
-                    box_height = bbox[3] - bbox[1]
                     json_obj = {
                         "obj_id": str(track_id),
                         "obj_type": obj_status,
                         "psr": {
-                            "position": {"x": center[0], "y": center[1], "z": -0.5},
-                            "rotation": {"x": 0, "y": 0, "z": 1},
-                            "scale": {"x": box_width, "y": box_height, "z": (box_height * 2.5)}
+                            "position": {"x": float(center_3d[0]), "y": float(center_3d[1]), "z": float(center_3d[2])},
+                            "rotation": {"x": 0, "y": 0, "z": float(angle_z)},
+                            "scale": {"x": float(scale_3d[0]), "y": float(scale_3d[1]), "z": float(scale_3d[2])}
                         }
                     }
                     json_frame_data.append(json_obj)
+                    custom_labels_list.append(f"#{track_id} {obj_status.split('.')[1]}")
                     
-                    if np.any(squeezed_mask):
-                        polygons = sv.mask_to_polygons(squeezed_mask)
+                    if np.any(mask_2d_unresized):
+                        H, W, _ = frame.shape
+                        mask_2d_resized = cv2.resize(mask_2d_unresized.astype(np.uint8), (W, H), interpolation=cv2.INTER_NEAREST)
+                        polygons = sv.mask_to_polygons(mask_2d_resized)
                         if polygons:
                             segment = polygons[0] / np.array([frame.shape[1], frame.shape[0]])
                             segment_str = " ".join(map(str, segment.flatten()))
                             f_text.write(f"{class_id} {segment_str}\n")
-                        
-            with open(json_output_dir / f"{image_path.stem}.json", "w", encoding="utf-8") as f_json:
-                json.dump(json_frame_data, f_json, indent=2)    
             
-            annotated_frame = frame.copy()
-            annotated_frame = mask_annotator.annotate(scene=annotated_frame, detections=tracked_detections)
-            annotated_frame = box_annotator.annotate(scene=annotated_frame, detections=tracked_detections)
-            annotated_frame = label_annotator.annotate(annotated_frame, detections=tracked_detections, labels=custom_labels)
-            cv2.imwrite(str(vis_output_dir / image_path.name), annotated_frame)
-            
-            print(f"Processing complete. Results saved in: {output_dir}")
+            if json_frame_data:            
+                with open(json_output_dir / f"{image_path.stem}.json", "w", encoding="utf-8") as f_json:
+                    json.dump(json_frame_data, f_json, indent=2)    
+                
+            if len(tracked_detections) > 0 and len(custom_labels_list) > 0:    
+                annotated_frame = frame.copy()
+                annotated_frame = mask_annotator.annotate(scene=annotated_frame, detections=tracked_detections)
+                annotated_frame = box_annotator.annotate(scene=annotated_frame, detections=tracked_detections)
+                annotated_frame = label_annotator.annotate(annotated_frame, detections=tracked_detections, labels=custom_labels_list)
+                cv2.imwrite(str(vis_output_dir / image_path.name), annotated_frame)
+                
+                print(f"Processing complete. Results saved in: {output_dir}")
         
         except RuntimeError as e:
             if "CUDA out of memory" in str(e):
@@ -229,6 +285,12 @@ if __name__ == '__main__':
         help="Path to the directory containing input image frames."
     )
     parser.add_argument(
+        "--pcd_dir", 
+        type=str, 
+        required=True, 
+        help="Path to the directory of corresponding .pcd files."
+    )
+    parser.add_argument(
         "--output_dir", 
         type=str, 
         default=None, 
@@ -249,4 +311,4 @@ if __name__ == '__main__':
         print(f"Error: Config file not found at {args.config}")
         exit()
 
-    track_and_annotate(data=args.data, config=config, output_dir=args.output_dir)
+    track_and_annotate(data=args.data, pcd_dir=args.pcd_dir, config=config, output_dir=args.output_dir)
