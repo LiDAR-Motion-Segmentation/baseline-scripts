@@ -36,8 +36,12 @@ def show_pointcloud(pointcloud_path, frame_idx):
     if len(points) == 0:
         print(f"[WARN] Empty pointcloud at {pointcloud_path}")
         return
+    colors = None
+    if pc.has_colors():
+        colors = (np.asarray(pc.colors) * 255).astype(np.uint8)
+
     rr.set_time_sequence("frame_idx", frame_idx)
-    rr.log("lidar/points", rr.Points3D(points, colors=[0.2, 0.8, 1.0]))
+    rr.log("lidar/points", rr.Points3D(positions=points,colors=colors))
     
 def visualize_sequence(pcd_dir, json_dir, fps=2):
     pcd_dir = Path(pcd_dir)
