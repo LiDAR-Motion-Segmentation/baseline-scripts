@@ -6,3 +6,28 @@
 /annotation_sam2
 !devcontainer.json
 /output_dir
+
+Python
+
+pycache/
+*.pyc
+.env
+.venv
+
+Test & CI
+
+test_output/
+weights/
+
+Data - NEVER commit data
+
+*.pcd
+*.png
+*.jpg
+*.json
+*.txt
+*.npy
+
+OS
+
+.DS_Store

@@ -1,0 +1,12 @@
+numpy
+opencv-python-headless  # Use 'headless' for CI servers
+torch
+torchvision
+supervision
+sahi
+ultralytics
+segment-anything-hq
+open3d
+scipy
+pyyaml
+ros2-numpy
