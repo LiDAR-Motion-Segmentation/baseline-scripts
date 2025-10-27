@@ -24,7 +24,7 @@ def draw_bounding_box(psr, obj_id, obj_type):
     )
     
     # Draw floating text label using Points3D
-    label_pos = center + np.array([0, 0, size[2] / 2 + 100])
+    label_pos = center + np.array([0, 0, size[2] / 2])
     rr.log(
         f"labels/{obj_type}/{obj_id}",
         rr.Points3D(positions=[label_pos], labels=[label]),
