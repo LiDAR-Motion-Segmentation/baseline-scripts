@@ -207,9 +207,11 @@ def track_and_annotate(data: str | Path,
                         # Squeeze the mask to remove the singleton dimension (from 1xHxW to HxW)
                         # squeezed_mask = mask.squeeze()
                     
+                        # pixel based tracking
                         if track_id in tracker_history:
-                            _, last_center_2d, static_frames = tracker_history[track_id]
+                            last_center_3d, last_center_2d, static_frames = tracker_history[track_id]
                             distance = math.dist(center_2d, last_center_2d)
+                            distance_3d = math.dist(center_3d, last_center_3d)
                             if distance < cfg['tracking']['movement_threshold_pixels']:
                                 static_frames += 1
                             else:
@@ -220,6 +222,23 @@ def track_and_annotate(data: str | Path,
                             tracker_history[track_id] = (center_3d, center_2d, static_frames)
                         else:
                             tracker_history[track_id] = (center_3d, center_2d, 0)
+                        
+                        # # trying velocity based tracking
+                        # now = time.time()
+                        # velocity_threshold = cfg['tracking'].get('velocity_threshold', 0.03) # meters per second
+                        # obj_status = "people.moving"
+                        
+                        # if track_id in tracker_history:
+                        #     last_center_3d, last_time = tracker_history[track_id]
+                        #     dt = now - last_time
+                        #     if dt > 0.15:
+                        #         disp = np.linalg.norm(np.array(center_3d) - np.array(last_center_3d))
+                        #         velocity = disp / dt
+                        #         if velocity < velocity_threshold:
+                        #             obj_status = "people.static"
+                        #     tracker_history[track_id] = (center_3d, now)
+                        # else:
+                        #     tracker_history[track_id] = (center_3d, now)
                             
                     else:
                         # default for missing cluster
