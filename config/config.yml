@@ -1,9 +1,9 @@
 paths:
-  yolo_model: "/home/soumoroy/baseline-scripts/weights/yolov8l.pt"
-  sam_checkpoint: "/home/soumoroy/baseline-scripts/weights/sam_hq_vit_b.pth"
+  yolo_model: "/scratch/soumo_roy/baseline-scripts/weights/yolov8l.pt"
+  sam_checkpoint: "/scratch/soumo_roy/baseline-scripts/weights/sam_hq_vit_l.pth"
 
 models:
-  sam_model_type: "vit_b"
+  sam_model_type: "vit_l"
   device: "cuda:0"
 
 sahi_params:
@@ -18,6 +18,8 @@ detection_params:
 tracking_params:
   movement_threshold_pixels: 5
   static_frame_count_threshold: 3
+  movement_threshold_meters: 0.1  
+  velocity_threshold: 0.03 # meters per second
 
 calibration:
   extrinsics:
