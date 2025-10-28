@@ -46,7 +46,7 @@ jobs:
       run: |
         echo "Running smoke test..."
         # 1. Run with --help (fast check)
-        python3 advanced_annotater.py --help
+        python3 image_video_object_tracking/advanced_annotater.py --help
         
         # 2. Run on a tiny dummy dataset (create dummy data first)
         mkdir -p test_data/images test_data/pcds test_output
@@ -58,7 +58,7 @@ jobs:
         # Run the script. It will fail on the 3-point check, which is fine.
         # We just want to ensure it runs without crashing on setup.
         # We use a special test config file
-        python3 advanced_annotater.py --data test_data/images --pcd_dir test_data/pcds --config test_config.yml --output_dir test_output
+        python3 image_video_object_tracking/advanced_annotater.py --data test_data/images --pcd_dir test_data/pcds --config test_config.yml --output_dir test_output
 
     - name: Upload test artifacts
       # 'always()' ensures this runs even if the smoke test fails, so we can see the logs
