@@ -1,5 +1,5 @@
 numpy
-opencv-python-headless  # Use 'headless' for CI servers
+opencv-python  # Use 'headless' for CI servers
 torch
 torchvision
 supervision
