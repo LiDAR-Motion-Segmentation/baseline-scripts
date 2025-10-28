@@ -8,20 +8,30 @@ from rosbags.image import message_to_cvimage
 from rosbags.typesys import Stores, get_typestore
 import cv2
 
+
 def main():
-    parser = argparse.ArgumentParser(description='Extract synchronized camera and LiDAR scans from ROS1 bags')
-    parser.add_argument('--bag-file', required=True, help='Input ROS1 bag file')
-    parser.add_argument('--camera-topic', required=True, help='Camera image topic name')
-    parser.add_argument('--camera-info-topic', required=True, help='Camera info topic name')
-    parser.add_argument('--lidar-topic', required=True, help='LiDAR topic name')
-    parser.add_argument('--output-dir', required=True, help='Output directory')
-    parser.add_argument('--sync-tol', type=float, default=0.1, help='Synchronization tolerance in seconds')
+    parser = argparse.ArgumentParser(
+        description="Extract synchronized camera and LiDAR scans from ROS1 bags"
+    )
+    parser.add_argument("--bag-file", required=True, help="Input ROS1 bag file")
+    parser.add_argument("--camera-topic", required=True, help="Camera image topic name")
+    parser.add_argument(
+        "--camera-info-topic", required=True, help="Camera info topic name"
+    )
+    parser.add_argument("--lidar-topic", required=True, help="LiDAR topic name")
+    parser.add_argument("--output-dir", required=True, help="Output directory")
+    parser.add_argument(
+        "--sync-tol",
+        type=float,
+        default=0.1,
+        help="Synchronization tolerance in seconds",
+    )
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)
-    image_dir = output_dir / 'images'
-    lidar_dir = output_dir / 'lidar'
-    intrinsics_dir = output_dir / 'intrinsics'
+    image_dir = output_dir / "images"
+    lidar_dir = output_dir / "lidar"
+    intrinsics_dir = output_dir / "intrinsics"
     image_dir.mkdir(parents=True, exist_ok=True)
     lidar_dir.mkdir(parents=True, exist_ok=True)
     intrinsics_dir.mkdir(parents=True, exist_ok=True)
@@ -49,42 +59,61 @@ def main():
         sync_pairs = []
 
         for lidar_ts, lidar_data, lidar_conn in lidar_msgs:
-            while img_ptr < len(camera_msgs) - 1 and abs(camera_msgs[img_ptr+1][0] - lidar_ts) < abs(camera_msgs[img_ptr][0] - lidar_ts):
+            while img_ptr < len(camera_msgs) - 1 and abs(
+                camera_msgs[img_ptr + 1][0] - lidar_ts
+            ) < abs(camera_msgs[img_ptr][0] - lidar_ts):
                 img_ptr += 1
             if abs(camera_msgs[img_ptr][0] - lidar_ts) <= args.sync_tol * 1e9:
-                sync_pairs.append((lidar_ts, lidar_data, lidar_conn, camera_msgs[img_ptr]))
+                sync_pairs.append(
+                    (lidar_ts, lidar_data, lidar_conn, camera_msgs[img_ptr])
+                )
 
-        for idx, (lidar_ts, lidar_data, lidar_conn, (img_ts, img_data, img_conn)) in enumerate(sync_pairs):
+        for idx, (
+            lidar_ts,
+            lidar_data,
+            lidar_conn,
+            (img_ts, img_data, img_conn),
+        ) in enumerate(sync_pairs):
             try:
                 # --- Process image ---
                 msg_img = reader.deserialize(img_data, img_conn.msgtype)
 
-                if 'CompressedImage' in img_conn.msgtype:
+                if "CompressedImage" in img_conn.msgtype:
                     # Decode JPEG-compressed image with OpenCV
                     np_arr = np.frombuffer(msg_img.data, dtype=np.uint8)
                     img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
                     if img is None:
-                        print(f"Failed to decode compressed image at timestamp {img_ts}")
+                        print(
+                            f"Failed to decode compressed image at timestamp {img_ts}"
+                        )
                         continue
                 else:
                     # Standard Image message
                     img = message_to_cvimage(msg_img)
                     if img.ndim == 1:
-                        if hasattr(msg_img, 'height') and hasattr(msg_img, 'width'):
+                        if hasattr(msg_img, "height") and hasattr(msg_img, "width"):
                             try:
-                                channels = 3 if 'rgb' in msg_img.encoding.lower() else 1
-                                img = img.reshape((msg_img.height, msg_img.width, channels))
+                                channels = 3 if "rgb" in msg_img.encoding.lower() else 1
+                                img = img.reshape(
+                                    (msg_img.height, msg_img.width, channels)
+                                )
                             except ValueError:
-                                print(f"Skipping image reshape failure at timestamp {img_ts}")
+                                print(
+                                    f"Skipping image reshape failure at timestamp {img_ts}"
+                                )
                                 continue
                         else:
-                            print(f"No reshape metadata available at timestamp {img_ts}, skipping image")
+                            print(
+                                f"No reshape metadata available at timestamp {img_ts}, skipping image"
+                            )
                             continue
                     if img.ndim not in [2, 3] or img.size == 0:
-                        print(f"Invalid image dimensions {img.shape} at timestamp {img_ts}, skipping image")
+                        print(
+                            f"Invalid image dimensions {img.shape} at timestamp {img_ts}, skipping image"
+                        )
                         continue
                     encoding = msg_img.encoding.lower()
-                    if encoding == 'mono8' and img.ndim == 2:
+                    if encoding == "mono8" and img.ndim == 2:
                         img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
 
                 img_filename = image_dir / f"{lidar_ts}.png"
@@ -114,11 +143,11 @@ def main():
                 # Find offsets
                 x_offset = y_offset = z_offset = None
                 for field in msg.fields:
-                    if field.name == 'x':
+                    if field.name == "x":
                         x_offset = field.offset
-                    elif field.name == 'y':
+                    elif field.name == "y":
                         y_offset = field.offset
-                    elif field.name == 'z':
+                    elif field.name == "z":
                         z_offset = field.offset
 
                 if None in (x_offset, y_offset, z_offset):
@@ -130,9 +159,15 @@ def main():
                 # Read XYZ fields efficiently
                 for i in range(num_points):
                     base = i * point_step
-                    points[i, 0] = np.frombuffer(data, dtype=np.float32, count=1, offset=base + x_offset)[0]
-                    points[i, 1] = np.frombuffer(data, dtype=np.float32, count=1, offset=base + y_offset)[0]
-                    points[i, 2] = np.frombuffer(data, dtype=np.float32, count=1, offset=base + z_offset)[0]
+                    points[i, 0] = np.frombuffer(
+                        data, dtype=np.float32, count=1, offset=base + x_offset
+                    )[0]
+                    points[i, 1] = np.frombuffer(
+                        data, dtype=np.float32, count=1, offset=base + y_offset
+                    )[0]
+                    points[i, 2] = np.frombuffer(
+                        data, dtype=np.float32, count=1, offset=base + z_offset
+                    )[0]
 
                 # Optionally filter invalid points
                 valid = ~np.isnan(points).any(axis=1)
@@ -153,6 +188,7 @@ def main():
                 print(f"Error processing pair {idx+1}: {e}")
 
     print(f"Processing complete. Saved {len(sync_pairs)} synchronized pairs.")
+
 
 if __name__ == "__main__":
     main()

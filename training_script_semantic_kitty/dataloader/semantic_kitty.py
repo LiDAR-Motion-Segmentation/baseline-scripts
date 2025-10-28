@@ -5,8 +5,13 @@ import numpy as np
 from torch.utils.data import Dataset
 from tqdm import tqdm
 from collections import defaultdict
-from utils.pointcloud_utils import canonical_transform, random_augment, crop_square_region
+from utils.pointcloud_utils import (
+    canonical_transform,
+    random_augment,
+    crop_square_region,
+)
 from torch.utils.data import DataLoader
+
 
 def kitti_collate_fn(batch):
     sequences = []
@@ -26,16 +31,20 @@ def kitti_collate_fn(batch):
         sequences.append(sequence)
 
         for n in range(len(pointclouds)):
-            pc = torch.from_numpy(pointclouds[n]).float()        # (N_i,4)
-            mask = torch.from_numpy(masks[n]).float()            # (N_i,)
+            pc = torch.from_numpy(pointclouds[n]).float()  # (N_i,4)
+            mask = torch.from_numpy(masks[n]).float()  # (N_i,)
             mask = torch.where(mask > 0, 1.0, 0.0)
-            timestamps = torch.from_numpy(timestamps_list[n]).float().squeeze(1)  # (N_i,)
+            timestamps = (
+                torch.from_numpy(timestamps_list[n]).float().squeeze(1)
+            )  # (N_i,)
 
             all_points.append(pc)
             all_coords.append(pc[:, :3])
             all_masks.append(mask)
             all_timestamps.append(timestamps)
-            all_batch_indices.append(torch.full((pc.shape[0],), batch_id, dtype=torch.long))
+            all_batch_indices.append(
+                torch.full((pc.shape[0],), batch_id, dtype=torch.long)
+            )
 
             all_offsets.append(cum_offset + pc.shape[0])
             cum_offset += pc.shape[0]
@@ -52,7 +61,8 @@ def kitti_collate_fn(batch):
         "batch_indices": torch.cat(all_batch_indices, dim=0),
         "offsets": torch.tensor(all_offsets, dtype=torch.long),
     }
-    
+
+
 # def downsample_pointcloud(pc, mask, max_points=20000):
 #     """Downsample point cloud and corresponding mask to reduce memory usage"""
 #     if len(pc) > max_points:
@@ -60,14 +70,17 @@ def kitti_collate_fn(batch):
 #         return pc[indices], mask[indices]
 #     return pc, mask
 
+
 class SemanticKITTIDataset(Dataset):
-    def __init__(self,
-                 root_dir: str,
-                 sequences: list,
-                 num_pointclouds: int,
-                 transform_pointclouds: bool = True,
-                 apply_augmentations: bool = False,
-                 add_timestamp_feat: bool = True):
+    def __init__(
+        self,
+        root_dir: str,
+        sequences: list,
+        num_pointclouds: int,
+        transform_pointclouds: bool = True,
+        apply_augmentations: bool = False,
+        add_timestamp_feat: bool = True,
+    ):
         self.root_dir = root_dir
         self.sequences = sequences
         self.num_pointclouds = num_pointclouds
@@ -101,9 +114,15 @@ class SemanticKITTIDataset(Dataset):
 
             num_frames = len(pc_files)
             for i in range(num_frames - self.num_pointclouds + 1):
-                pc_window = [os.path.join(velodyne_dir, pc_files[j]) for j in range(i, i+self.num_pointclouds)]
-                mask_window = [os.path.join(label_dir, mask_files[j]) for j in range(i, i+self.num_pointclouds)]
-                pose_window = poses[i:i+num_pointclouds]
+                pc_window = [
+                    os.path.join(velodyne_dir, pc_files[j])
+                    for j in range(i, i + self.num_pointclouds)
+                ]
+                mask_window = [
+                    os.path.join(label_dir, mask_files[j])
+                    for j in range(i, i + self.num_pointclouds)
+                ]
+                pose_window = poses[i : i + num_pointclouds]
                 self.samples.append((seq, pc_window, mask_window, pose_window))
 
         print(f"Loaded {len(self.samples)} samples from KITTI sequences {sequences}")
@@ -116,26 +135,30 @@ class SemanticKITTIDataset(Dataset):
 
         pointclouds = []
         timestamps = []
-        offsets = [0,]
+        offsets = [
+            0,
+        ]
         masks = []
 
-        assert len(pc_files) == len(mask_files), (
-            f"Mismatch in number of pointclouds ({len(pc_files)}) and masks ({len(mask_files)})"
-        )
-        
+        assert len(pc_files) == len(
+            mask_files
+        ), f"Mismatch in number of pointclouds ({len(pc_files)}) and masks ({len(mask_files)})"
+
         for i in range(self.num_pointclouds):
             pc_path = pc_files[i]
             mask_path = mask_files[i]
 
             # load (why reshape here need to check)
             pc = np.fromfile(pc_path, dtype=np.float32).reshape(-1, 4)
-            mask = np.fromfile(mask_path, dtype=np.uint32).reshape(-1)  # per-point label
+            mask = np.fromfile(mask_path, dtype=np.uint32).reshape(
+                -1
+            )  # per-point label
             mask = (mask > 250).astype(np.float32)  # moving vs static
 
             pc, mask = crop_square_region(pc, mask, 10)
             # pc, mask= downsample_pointcloud(pc, mask)
             # t = np.ones((pc.shape[0], 1), dtype=np.float32) * times[i]
-            t = np.ones([pc.shape[0], 1])*i/(self.num_pointclouds-1)
+            t = np.ones([pc.shape[0], 1]) * i / (self.num_pointclouds - 1)
 
             pointclouds.append(pc)
             masks.append(mask)
@@ -150,7 +173,14 @@ class SemanticKITTIDataset(Dataset):
             for i in range(len(pointclouds)):
                 pointclouds[i] = np.concatenate((pointclouds[i], timestamps[i]), axis=1)
 
-        return sequence, pointclouds, timestamps, offsets[:self.num_pointclouds], masks, poses
+        return (
+            sequence,
+            pointclouds,
+            timestamps,
+            offsets[: self.num_pointclouds],
+            masks,
+            poses,
+        )
 
 
 # Example usage:
@@ -160,31 +190,39 @@ if __name__ == "__main__":
     num_pointclouds = 8
     test_sequences = [8]
 
-    kitty_dataset_train = SemanticKITTIDataset(root_dir, train_sequences, num_pointclouds,
-                                  transform_pointclouds=True,
-                                  apply_augmentations=True,
-                                  add_timestamp_feat=True)
-    
-    kitty_dataset_test = SemanticKITTIDataset(root_dir, test_sequences, num_pointclouds,
-                                  transform_pointclouds=True,
-                                  apply_augmentations=True,
-                                  add_timestamp_feat=True) 
+    kitty_dataset_train = SemanticKITTIDataset(
+        root_dir,
+        train_sequences,
+        num_pointclouds,
+        transform_pointclouds=True,
+        apply_augmentations=True,
+        add_timestamp_feat=True,
+    )
+
+    kitty_dataset_test = SemanticKITTIDataset(
+        root_dir,
+        test_sequences,
+        num_pointclouds,
+        transform_pointclouds=True,
+        apply_augmentations=True,
+        add_timestamp_feat=True,
+    )
 
     train_loader = DataLoader(
         kitty_dataset_train,
         batch_size=2,
         shuffle=True,
         collate_fn=kitti_collate_fn,
-        num_workers=4)
-    
+        num_workers=4,
+    )
+
     test_loader = DataLoader(
         kitty_dataset_test,
         batch_size=1,
         shuffle=True,
         collate_fn=kitti_collate_fn,
-        num_workers=4
+        num_workers=4,
     )
-    
+
     for sample in tqdm(kitty_dataset_test):
         sequence, pointclouds, timestamps, offsets, masks, poses = sample
-

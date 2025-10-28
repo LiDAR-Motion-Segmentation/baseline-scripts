@@ -1,0 +1,39 @@
+# 1. File Paths
+paths:
+  yolo_model: "weights/yolov8n.pt" # SMALLEST model
+  sam_checkpoint: "weights/sam_vit_b_01ec64.pth" # SMALLEST model
+
+# 2. Model Configurations
+models:
+  sam_model_type: "vit_b"
+  device: "cpu" # CRITICAL: Must be "cpu" for GitHub Actions
+
+# 3. SAHI Slicing Parameters
+sahi_params:
+  slice_height: 512
+  slice_width: 512
+  overlap_ratio: 0.2
+
+# 4. Detection & NMS Parameters
+detection_params:
+  confidence_threshold: 0.3
+  nms_threshold: 0.5
+
+# 5. Tracking & State Parameters
+tracking_params:
+  movement_threshold_meters: 0.1
+  static_frame_count_threshold: 3
+
+# 6. Sensor Calibration Data
+calibration:
+  extrinsics:
+    translation: [0.0, 0.0, 0.0]
+    rotation: [0.0, 0.0, 0.0, 1.0] # No rotation
+  intrinsics:
+    width: 10
+    height: 10
+    fx: 5.0
+    fy: 5.0
+    cx: 5.0
+    cy: 5.0
+    distortion: [0.0, 0.0, 0.0, 0.0]

@@ -41,26 +41,33 @@ except ImportError:
     HAS_TRACKING_LIBS = False
 
 # Logging setup
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
+
 
 @dataclass
 class BoundingBox3D:
     """3D Bounding Box representation"""
+
     center: np.ndarray  # [x, y, z]
-    size: np.ndarray    # [length, width, height]
-    rotation: float     # rotation around z-axis in radians
+    size: np.ndarray  # [length, width, height]
+    rotation: float  # rotation around z-axis in radians
     confidence: float = 1.0
     obj_id: str = ""
     obj_type: str = "unknown"
 
+
 @dataclass
 class TrackingResult:
     """Tracking result for a single frame"""
+
     frame_id: int
     timestamp: float
     boxes: List[BoundingBox3D]
     point_cloud_path: str
+
 
 class MotionAnalyzer:
     """Analyzes motion patterns to classify objects as static or moving"""
@@ -72,10 +79,9 @@ class MotionAnalyzer:
 
     def update_track(self, obj_id: str, position: np.ndarray, timestamp: float):
         """Update position history for a tracked object"""
-        self.track_histories[obj_id].append({
-            'position': position.copy(),
-            'timestamp': timestamp
-        })
+        self.track_histories[obj_id].append(
+            {"position": position.copy(), "timestamp": timestamp}
+        )
 
     def classify_motion(self, obj_id: str) -> str:
         """Classify object as moving or static based on position history"""
@@ -87,14 +93,14 @@ class MotionAnalyzer:
             return "unknown"
 
         # Calculate total displacement over time window
-        positions = np.array([h['position'] for h in history])
+        positions = np.array([h["position"] for h in history])
 
         # Calculate velocity magnitudes between consecutive frames
         velocities = []
         for i in range(1, len(positions)):
-            dt = history[i]['timestamp'] - history[i-1]['timestamp']
+            dt = history[i]["timestamp"] - history[i - 1]["timestamp"]
             if dt > 0:
-                displacement = np.linalg.norm(positions[i] - positions[i-1])
+                displacement = np.linalg.norm(positions[i] - positions[i - 1])
                 velocity = displacement / dt
                 velocities.append(velocity)
 
@@ -105,10 +111,14 @@ class MotionAnalyzer:
         max_velocity = np.max(velocities)
 
         # Classification logic
-        if avg_velocity > self.motion_threshold and max_velocity > self.motion_threshold * 2:
+        if (
+            avg_velocity > self.motion_threshold
+            and max_velocity > self.motion_threshold * 2
+        ):
             return "moving_people"
         else:
             return "people_static"
+
 
 class PointPillarsDetector:
     """PointPillars-based human detection (fallback implementation)"""
@@ -121,9 +131,9 @@ class PointPillarsDetector:
 
         # Human-specific parameters (typical human dimensions in meters)
         self.human_size_range = {
-            'length': (0.3, 0.8),    # 30cm to 80cm
-            'width': (0.3, 0.8),     # 30cm to 80cm  
-            'height': (1.2, 2.2)     # 1.2m to 2.2m
+            "length": (0.3, 0.8),  # 30cm to 80cm
+            "width": (0.3, 0.8),  # 30cm to 80cm
+            "height": (1.2, 2.2),  # 1.2m to 2.2m
         }
 
         logger.info(f"Initialized PointPillars detector on {device}")
@@ -138,7 +148,9 @@ class PointPillarsDetector:
 
         # Filter points to human height range (0.5m to 2.5m above ground)
         ground_z = np.percentile(point_cloud[:, 2], 5)  # Estimate ground level
-        human_height_mask = (point_cloud[:, 2] > ground_z + 0.5) & (point_cloud[:, 2] < ground_z + 2.5)
+        human_height_mask = (point_cloud[:, 2] > ground_z + 0.5) & (
+            point_cloud[:, 2] < ground_z + 2.5
+        )
         filtered_points = point_cloud[human_height_mask]
 
         if len(filtered_points) < 50:
@@ -166,9 +178,17 @@ class PointPillarsDetector:
             size = max_coords - min_coords
 
             # Filter by human-like dimensions
-            if (self.human_size_range['length'][0] <= size[0] <= self.human_size_range['length'][1] and
-                self.human_size_range['width'][0] <= size[1] <= self.human_size_range['width'][1] and
-                self.human_size_range['height'][0] <= size[2] <= self.human_size_range['height'][1]):
+            if (
+                self.human_size_range["length"][0]
+                <= size[0]
+                <= self.human_size_range["length"][1]
+                and self.human_size_range["width"][0]
+                <= size[1]
+                <= self.human_size_range["width"][1]
+                and self.human_size_range["height"][0]
+                <= size[2]
+                <= self.human_size_range["height"][1]
+            ):
 
                 # Estimate orientation (simplified)
                 rotation = 0.0  # Could implement PCA-based orientation estimation
@@ -178,12 +198,13 @@ class PointPillarsDetector:
                     size=size[:3],
                     rotation=rotation,
                     confidence=min(1.0, len(cluster_points) / 100.0),
-                    obj_type="people_unknown"
+                    obj_type="people_unknown",
                 )
                 detections.append(bbox)
 
         logger.info(f"Detected {len(detections)} human candidates")
         return detections
+
 
 class SimpleTracker:
     """Simple 3D object tracker (fallback for M2Track)"""
@@ -216,7 +237,9 @@ class SimpleTracker:
             return detections
 
         # Compute distance matrix between existing tracks and detections
-        track_positions = np.array([track.center for track in self.active_tracks.values()])
+        track_positions = np.array(
+            [track.center for track in self.active_tracks.values()]
+        )
         detection_positions = np.array([det.center for det in detections])
 
         distance_matrix = cdist(track_positions, detection_positions)
@@ -232,7 +255,10 @@ class SimpleTracker:
             min_distance_idx = np.argmin(distance_matrix[i])
             min_distance = distance_matrix[i, min_distance_idx]
 
-            if min_distance < self.max_distance and min_distance_idx not in used_detection_indices:
+            if (
+                min_distance < self.max_distance
+                and min_distance_idx not in used_detection_indices
+            ):
                 # Update existing track
                 detections[min_distance_idx].obj_id = track_id
                 self.active_tracks[track_id] = detections[min_distance_idx]
@@ -264,6 +290,7 @@ class SimpleTracker:
                 del self.disappeared[track_id]
 
         return updated_tracks
+
 
 class PointCloudTrackingSystem:
     """Main tracking system coordinating detection, tracking, and motion analysis"""
@@ -335,26 +362,22 @@ class PointCloudTrackingSystem:
                 "psr": {
                     "position": {
                         "x": float(box.center[0]),
-                        "y": float(box.center[1]), 
-                        "z": float(box.center[2])
+                        "y": float(box.center[1]),
+                        "z": float(box.center[2]),
                     },
-                    "rotation": {
-                        "x": 0.0,
-                        "y": 0.0,
-                        "z": float(box.rotation)
-                    },
+                    "rotation": {"x": 0.0, "y": 0.0, "z": float(box.rotation)},
                     "scale": {
                         "x": float(box.size[0]),
                         "y": float(box.size[1]),
-                        "z": float(box.size[2])
-                    }
-                }
+                        "z": float(box.size[2]),
+                    },
+                },
             }
             json_data.append(obj_data)
 
         # Save to file
         output_path = self.output_dir / f"frame_{result.frame_id:06d}.json"
-        with open(output_path, 'w') as f:
+        with open(output_path, "w") as f:
             json.dump(json_data, f, indent=2)
 
         logger.info(f"Exported frame {result.frame_id} to {output_path}")
@@ -370,7 +393,8 @@ class PointCloudTrackingSystem:
         # Sort by numeric value in filename
         def extract_number(filename):
             import re
-            numbers = re.findall(r'\d+', filename.stem)
+
+            numbers = re.findall(r"\d+", filename.stem)
             return int(numbers[0]) if numbers else 0
 
         pcd_files.sort(key=extract_number)
@@ -383,7 +407,9 @@ class PointCloudTrackingSystem:
 
         # Process each frame
         for frame_id, pcd_path in enumerate(pcd_files):
-            logger.info(f"Processing frame {frame_id + 1}/{len(pcd_files)}: {pcd_path.name}")
+            logger.info(
+                f"Processing frame {frame_id + 1}/{len(pcd_files)}: {pcd_path.name}"
+            )
 
             result = self.process_frame(frame_id, str(pcd_path))
 
@@ -397,15 +423,24 @@ class PointCloudTrackingSystem:
         """Export tracking summary and statistics"""
         summary = {
             "total_frames": len(self.tracking_results),
-            "total_unique_tracks": len(set(
-                obj.obj_id for result in self.tracking_results for obj in result.boxes
-            )),
+            "total_unique_tracks": len(
+                set(
+                    obj.obj_id
+                    for result in self.tracking_results
+                    for obj in result.boxes
+                )
+            ),
             "motion_classification": {},
             "detection_statistics": {
-                "frames_with_detections": sum(1 for r in self.tracking_results if r.boxes),
+                "frames_with_detections": sum(
+                    1 for r in self.tracking_results if r.boxes
+                ),
                 "total_detections": sum(len(r.boxes) for r in self.tracking_results),
-                "avg_detections_per_frame": sum(len(r.boxes) for r in self.tracking_results) / max(1, len(self.tracking_results))
-            }
+                "avg_detections_per_frame": sum(
+                    len(r.boxes) for r in self.tracking_results
+                )
+                / max(1, len(self.tracking_results)),
+            },
         }
 
         # Count motion classifications
@@ -417,21 +452,34 @@ class PointCloudTrackingSystem:
 
         # Save summary
         summary_path = self.output_dir / "tracking_summary.json"
-        with open(summary_path, 'w') as f:
+        with open(summary_path, "w") as f:
             json.dump(summary, f, indent=2)
 
         logger.info(f"Exported tracking summary to {summary_path}")
 
+
 def main():
-    parser = argparse.ArgumentParser(description="3D Point Cloud Human Tracking with Motion Analysis")
+    parser = argparse.ArgumentParser(
+        description="3D Point Cloud Human Tracking with Motion Analysis"
+    )
     parser.add_argument("pcd_directory", help="Directory containing PCD files")
-    parser.add_argument("--output", "-o", default="./tracking_output", 
-                       help="Output directory for JSON files")
+    parser.add_argument(
+        "--output",
+        "-o",
+        default="./tracking_output",
+        help="Output directory for JSON files",
+    )
     parser.add_argument("--model", "-m", help="Path to PointPillars model checkpoint")
-    parser.add_argument("--motion-threshold", "-t", type=float, default=0.1,
-                       help="Motion threshold in meters/second (default: 0.1)")
-    parser.add_argument("--verbose", "-v", action="store_true", 
-                       help="Enable verbose logging")
+    parser.add_argument(
+        "--motion-threshold",
+        "-t",
+        type=float,
+        default=0.1,
+        help="Motion threshold in meters/second (default: 0.1)",
+    )
+    parser.add_argument(
+        "--verbose", "-v", action="store_true", help="Enable verbose logging"
+    )
 
     args = parser.parse_args()
 
@@ -445,8 +493,7 @@ def main():
 
     # Initialize tracking system
     tracking_system = PointCloudTrackingSystem(
-        output_dir=args.output,
-        model_path=args.model
+        output_dir=args.output, model_path=args.model
     )
 
     # Set motion threshold
@@ -466,7 +513,9 @@ def main():
     except Exception as e:
         logger.error(f"Error during processing: {e}")
         import traceback
+
         traceback.print_exc()
+
 
 if __name__ == "__main__":
     main()

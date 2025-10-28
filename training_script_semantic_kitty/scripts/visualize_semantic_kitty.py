@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from models.temporal_point_transformer import TemporalPointTransformer
 from omegaconf import OmegaConf
+
 # import hdbscan
 import matplotlib.pyplot as plt
 from pathlib import Path
@@ -18,9 +19,11 @@ OmegaConf.register_new_resolver("repeat", lambda value, n: [value] * n)
 
 import colorsys
 
+
 def make_hsv_palette(n):
     hues = np.linspace(0, 1, n, endpoint=False)
     return [colorsys.hsv_to_rgb(h, 1.0, 1.0) for h in hues]
+
 
 def main(cfg):
     rr.init("base", spawn=False)
@@ -32,7 +35,7 @@ def main(cfg):
             rrb.Spatial3DView(origin="world/lidar/gt"),
             # rrb.Spatial3DView(origin="world/lidar/dbscan"),
         ),
-        collapse_panels=True
+        collapse_panels=True,
     )
     rr.send_blueprint(blueprint)
 
@@ -64,7 +67,9 @@ def main(cfg):
         rr.set_time("frame", sequence=index)
 
         # Move batch to device
-        batch_device = {k: v.cuda() if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
+        batch_device = {
+            k: v.cuda() if isinstance(v, torch.Tensor) else v for k, v in batch.items()
+        }
 
         # Inference
         with torch.no_grad():
@@ -72,8 +77,8 @@ def main(cfg):
             preds = (preds > 0.5).float().cpu().numpy()
 
         preds = preds.astype(np.uint8).flatten()
-        gt_mask = batch['masks'].cpu().numpy().astype(np.uint8).flatten()
-        
+        gt_mask = batch["masks"].cpu().numpy().astype(np.uint8).flatten()
+
         # TP / FP / FN / TN
         tp = (preds == 1) & (gt_mask > 0)
         fp = (preds == 1) & (gt_mask == 0)
@@ -81,23 +86,29 @@ def main(cfg):
         tn = (preds == 0) & (gt_mask == 0)
 
         pred_colors = np.zeros((preds.shape[0], 3), dtype=np.uint8)
-        pred_colors[tp] = [0, 255, 0]     # Green
-        pred_colors[fp] = [255, 0, 0]     # Red
-        pred_colors[fn] = [0, 0, 255]     # Blue
-        pred_colors[tn] = [128, 128, 128] # Gray
+        pred_colors[tp] = [0, 255, 0]  # Green
+        pred_colors[fp] = [255, 0, 0]  # Red
+        pred_colors[fn] = [0, 0, 255]  # Blue
+        pred_colors[tn] = [128, 128, 128]  # Gray
 
         gt_colors = np.zeros((preds.shape[0], 3), dtype=np.uint8)
-        gt_colors[gt_mask > 0] = [0, 255, 255]    # Cyan
-        gt_colors[gt_mask == 0] = [128, 128, 128] # Gray
+        gt_colors[gt_mask > 0] = [0, 255, 255]  # Cyan
+        gt_colors[gt_mask == 0] = [128, 128, 128]  # Gray
 
-        latest_mask = (batch["timestamps"] == 1)
+        latest_mask = batch["timestamps"] == 1
         points_np = batch["points"][latest_mask].cpu().numpy()
         pred_colors = pred_colors[latest_mask.cpu().numpy()]
         gt_colors = gt_colors[latest_mask.cpu().numpy()]
 
         # Log to rerun
-        rr.log("world/lidar/pred", rr.Points3D(positions=points_np[:, :3], colors=pred_colors, radii=0.05))
-        rr.log("world/lidar/gt", rr.Points3D(positions=points_np[:, :3], colors=gt_colors, radii=0.05))
+        rr.log(
+            "world/lidar/pred",
+            rr.Points3D(positions=points_np[:, :3], colors=pred_colors, radii=0.05),
+        )
+        rr.log(
+            "world/lidar/gt",
+            rr.Points3D(positions=points_np[:, :3], colors=gt_colors, radii=0.05),
+        )
         #
         # clusterer = hdbscan.HDBSCAN(
         #     min_cluster_size=20,  # smallest size of clusters you care about
@@ -140,12 +151,17 @@ def main(cfg):
     except KeyboardInterrupt:
         rr.disconnect()
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run evaluation")
-    parser.add_argument("--config_path", type=Path, required=True, help="Path to the config file")
-    parser.add_argument("--checkpoint_path", type=Path, required=True, help="Path to the .ckpt file")
+    parser.add_argument(
+        "--config_path", type=Path, required=True, help="Path to the config file"
+    )
+    parser.add_argument(
+        "--checkpoint_path", type=Path, required=True, help="Path to the .ckpt file"
+    )
     args = parser.parse_args()
-    
+
     cfg = OmegaConf.load(args.config_path)
     cfg.checkpoint_path = args.checkpoint_path
     main(cfg)

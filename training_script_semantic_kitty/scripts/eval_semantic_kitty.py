@@ -16,6 +16,7 @@ from hydra.experimental import initialize, compose
 
 OmegaConf.register_new_resolver("repeat", lambda value, n: [value] * n)
 
+
 def run(cfg):
     L.seed_everything(cfg.training.seed, workers=True)
 
@@ -27,10 +28,10 @@ def run(cfg):
         print(f"Processing sequence: {test_sequence}")
 
         test_dataset = SemanticKITTIDataset(
-            cfg.data.root_dir, 
-            [test_sequence],  
+            cfg.data.root_dir,
+            [test_sequence],
             num_pointclouds=cfg.data.num_pointclouds,
-            transform_pointclouds=cfg.data.transform_pointclouds, 
+            transform_pointclouds=cfg.data.transform_pointclouds,
             add_timestamp_feat=cfg.data.add_timestamp_feat,
         )
 
@@ -44,7 +45,9 @@ def run(cfg):
         )
 
         print(f"Loading model from checkpoint: {cfg.checkpoint_path}")
-        model = TemporalPointTransformer.load_from_checkpoint(cfg.checkpoint_path, cfg=cfg)
+        model = TemporalPointTransformer.load_from_checkpoint(
+            cfg.checkpoint_path, cfg=cfg
+        )
 
         trainer = L.Trainer(
             accelerator=cfg.training.accelerator,
@@ -56,12 +59,17 @@ def run(cfg):
         print(f"Running test for sequence {test_sequence}...")
         trainer.test(model, dataloaders=test_loader, verbose=False)
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run evaluation")
-    parser.add_argument("--config_path", type=Path, required=True, help="Path to the config file")
-    parser.add_argument("--checkpoint_path", type=Path, required=True, help="Path to the .ckpt file")
+    parser.add_argument(
+        "--config_path", type=Path, required=True, help="Path to the config file"
+    )
+    parser.add_argument(
+        "--checkpoint_path", type=Path, required=True, help="Path to the .ckpt file"
+    )
     args = parser.parse_args()
-    
+
     cfg = OmegaConf.load(args.config_path)
     cfg.checkpoint_path = args.checkpoint_path
     run(cfg)
