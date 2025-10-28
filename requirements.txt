@@ -10,3 +10,4 @@ open3d
 scipy
 pyyaml
 ros2-numpy
+black
