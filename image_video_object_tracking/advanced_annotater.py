@@ -16,6 +16,7 @@ import open3d as o3d
 from scipy.spatial.transform import Rotation as R
 import ros2_numpy
 
+
 def get_center_point(bbox: np.ndarray) -> tuple[float, float]:
     return (bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2
 
@@ -65,11 +66,11 @@ def track_and_annotate(
     #     [[intr["fx"], 0, intr["cx"]], [0, intr["fy"], intr["cy"]], [0, 0, 1]]
     # )
     # dist_coeffs = np.array(intr["distortion"])
-    
-    # old style 
+
+    # old style
     # extr = cfg["calib"]["extrinsics"]
     # lidar_to_camera_tf = get_transform_matrix(extr["translation"], extr["rotation"])
-    
+
     # ros2_numpy version
     extr = cfg["calib"]["extrinsics"]
     t = extr["translation"]
@@ -168,33 +169,37 @@ def track_and_annotate(
                 cv2.imwrite(str(vis_output_dir / image_path.name), frame)
                 continue
 
-            points_homogeneous = np.hstack([points_3d_lidar, np.ones((points_3d_lidar.shape[0], 1))])
+            points_homogeneous = np.hstack(
+                [points_3d_lidar, np.ones((points_3d_lidar.shape[0], 1))]
+            )
             points_3d_cam = (lidar_to_cam_matrix @ points_homogeneous.T).T[:, :3]
-            
+
             # normal image based projection
             # points_2d, _ = cv2.projectPoints(
             #     points_3d_cam, np.zeros(3), np.zeros(3), camera_matrix, dist_coeffs
             # )
             # points_2d = points_2d.squeeze(axis=1)
-            
+
             # using spherical(equirectangualar) projection
             x = points_3d_cam[:, 0]
             y = points_3d_cam[:, 1]
             z = points_3d_cam[:, 2]
             r = np.sqrt(x**2 + y**2 + z**2)
-            points_2d = np.full((x.shape[0],2), -1.0) # Initialize points_2d with an off-image value (-1, -1)
+            points_2d = np.full(
+                (x.shape[0], 2), -1.0
+            )  # Initialize points_2d with an off-image value (-1, -1)
             valid_indices = r > 0.001
-            
+
             # Calculate spherical coordinates only for valid points
             x_valid = x[valid_indices]
             y_valid = y[valid_indices]
             z_valid = z[valid_indices]
             r_valid = r[valid_indices]
-            
+
             p_x = x_valid / r_valid
             p_y = y_valid / r_valid
             p_z = z_valid / r_valid
-            
+
             # Clamp p_y to [-1, 1] to avoid domain errors in arcsin
             p_y = np.clip(p_y, -1.0, 1.0)
             phi = np.arcsin(p_y)
@@ -204,10 +209,10 @@ def track_and_annotate(
             # Calculate pixel coordinates for valid points
             u_coords = (theta * W / (2 * np.pi)) + (W / 2)
             v_coords = (phi * H / np.pi) + (H / 2)
-            
+
             # Place the valid pixel coordinates into the main array
             points_2d[valid_indices] = np.vstack((u_coords, v_coords)).T
-            
+
             sam_predictor.set_image(frame)
             masks_tensor, _, _ = sam_predictor.predict_torch(
                 point_coords=None,
@@ -267,7 +272,7 @@ def track_and_annotate(
                         & (v < bbox_2d[3])
                     )
                     point_cluster = points_3d_lidar[mask_in_box]
-                    
+
                     center_2d = get_center_point(bbox_2d)
                     obj_status = "people.moving"
                     center_3d = np.array([0, 0, 0])
@@ -278,17 +283,21 @@ def track_and_annotate(
                     if point_cluster.shape[0] >= 4:
                         cluster_pcd = o3d.geometry.PointCloud()
                         cluster_pcd.points = o3d.utility.Vector3dVector(point_cluster)
-                        
+
                         try:
-                            plane_model, inliers = cluster_pcd.segment_plane(distance_threshold=0.05,
-                                                                             ransac_n=3,
-                                                                             num_iterations=100)
+                            plane_model, inliers = cluster_pcd.segment_plane(
+                                distance_threshold=0.05, ransac_n=3, num_iterations=100
+                            )
                             # The 'outliers' are the points NOT on the ground (i.e., the person)
-                            outlier_cloud = cluster_pcd.select_by_index(inliers, invert=True)
+                            outlier_cloud = cluster_pcd.select_by_index(
+                                inliers, invert=True
+                            )
                         except Exception as e:
                             print(f"  RANSAC failed for track {track_id}: {e}")
-                            outlier_cloud = cluster_pcd # Fallback to using the whole cluster
-                        
+                            outlier_cloud = (
+                                cluster_pcd  # Fallback to using the whole cluster
+                            )
+
                         # Check if the outlier cloud (the person) still has enough points
                         if len(outlier_cloud.points) >= 4:
                             oriented_bbox_3d = outlier_cloud.get_oriented_bounding_box()

@@ -71,7 +71,6 @@ jobs:
   # Job 2: Package and Push Docker Image
   package-docker:
     name: Package and Push Docker Image
-    # This job 'needs' the first one to pass
     needs: build-and-test
     runs-on: ubuntu-latest
     # Only run this job when pushing to the 'main' branch (i.e., not on Pull Requests)
