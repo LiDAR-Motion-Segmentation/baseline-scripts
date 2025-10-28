@@ -410,6 +410,13 @@ project/
 │   ├── 000000.json
 │   ├── 000001.json
 │   └── ...
+
+Script to batch-update the 'obj_type' field in JSON annotations for people types.
+Usage:
+    python batch_update_obj_type.py --json_dir /path/to/jsons --mode forward
+Modes:
+  - forward:  people.moving → moving_people,   people.static → people_static
+  - reverse:  moving_people → people.moving,   people_static → people.static
 ```
 ![alt text](./assets/000058.png)
 

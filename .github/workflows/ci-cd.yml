@@ -101,4 +101,4 @@ jobs:
         # tags: ghcr.io/${{ github.repository }}:${{ github.sha }}
         # This also tags the image as 'latest'
         # Example: ghcr.io/your-username/your-repo:latest
-        tags: ghcr.io/${{ github.repository }}:latest
+        tags: ghcr.io/s0um0r0y/annotation3d:latest
