@@ -329,6 +329,8 @@ Login Succeeded
 - New code with `ByteTrack` with `SAHI+NMS` integration for better tracking has been added
 - Code for automated annotation is present in `advanced_annotater.py` which will generate `labels` of  `people.static` or `people.moving` in the form of json files with bounding box in `psr` format 
 - For running `advanced_annotater.py` I would highly suggest to use a GPU with atleast 16 gb vram like I am using `Nvidia A4000` for good quality of detection and segmentation although in the config I do provide the option of using CPU
+- Added `RANSAC` for ground plane removal and to deal with outliers
+- Note that the code below has been modified for spherical projection , if using pinhole projection comment the spherical projection out
 ```bash
 # setup
 pip install --upgrade ultralytics sahi supervision segment-anything-hq opencv-python numpy pyyaml
@@ -340,6 +342,8 @@ python3 track_distant_people_ByteTrack.py --input_dir input_frames --output_dir 
 
 # using automated annotation script
 # config for this code is present in config/config.yml
+# new version using ros2_numpy, make sure to install ros2_numpy or use the devconatainer
+pip install ros2-numpy 
 python3 advanced_annotator.py \ 
     --data /path/to/your/frames \
     --output_dir /path/to/your/results \

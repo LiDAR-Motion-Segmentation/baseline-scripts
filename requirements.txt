@@ -12,3 +12,4 @@ pyyaml
 ros2-numpy
 black
 timm
+scikit-learn
