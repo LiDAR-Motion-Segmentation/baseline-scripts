@@ -3,9 +3,9 @@
 2) Custom Data Parsing from ROSbags and Data Annotation pipeline in `Semantic Kitty` format for converting an rosbag into annotated data for `Motion Object Segmentation Algoritms` using `YOLOv8 + SAM2`.
 3) Hardware setup for custom data collection
 4) Docker devcontainer and RVIZ2 setup for visualization
-5) Image based multi object tracking using `YOLOv11 + SAM2 + SAHI + NMS` for detecting and tracking people walking at a distance in equirectangular images using `ByteTrack` for automated annotation pipeline for pointclouds.
+5) Image based multi object tracking using `YOLOv11 + SAM2 + SAHI + NMS` for detecting and tracking people walking at a distance in equirectangular images using `ByteTrack` for automated annotation pipeline for pointclouds with `RANSAC` for ground plane removal and outliers removal.
 
-![alt text](./assets/Screenshot%20from%202025-10-22%2001-31-03.png)
+![alt text](./assets/Screenshot%20from%202025-10-29%2019-04-55.png)
 
 ## semantic kitty scripts
 - the files are placed in `training_script_semantic_kitty` directory

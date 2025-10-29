@@ -22,7 +22,6 @@ weights/
 Data - NEVER commit data
 
 *.pcd
-*.png
 *.jpg
 *.json
 *.txt
