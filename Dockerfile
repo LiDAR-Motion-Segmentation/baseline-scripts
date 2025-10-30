@@ -10,7 +10,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
 # Install all other dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install -r requirements.txt
 
 # Install dependencies for OpenCV
 RUN apt-get update && apt-get install -y libgl1-mesa-glx libglib2.0-0 && rm -rf /var/lib/apt/lists/*
@@ -25,4 +25,4 @@ RUN mkdir -p weights && \
     wget https://huggingface.co/lkeab/hq-sam/resolve/main/sam_hq_vit_l.pth -O weights/sam_hq_vit_l.pth
 
 # Set the entrypoint to run your script
-ENTRYPOINT ["python", "advanced_annotater.py"]
+ENTRYPOINT ["python", "advanced_annotater_v2.py"]
