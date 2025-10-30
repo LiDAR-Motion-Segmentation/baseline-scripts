@@ -66,7 +66,7 @@ def process_frame(timestep):
     y = points_camera_frame[:, 1]
     z = points_camera_frame[:, 2]
 
-    r = np.sqrt(x ** 2 + y ** 2 + z ** 2)
+    r = np.sqrt(x**2 + y**2 + z**2)
     valid_indices = r > 0
     p_x, p_y, p_z = (
         x[valid_indices] / r[valid_indices],
@@ -113,7 +113,8 @@ def process_frame(timestep):
     colored_pcd.colors = o3d.utility.Vector3dVector(colors)
 
     o3d.io.write_point_cloud(
-        f"./sam_lidar/{timestep:06d}.pcd", colored_pcd,
+        f"./sam_lidar/{timestep:06d}.pcd",
+        colored_pcd,
     )
 
     return colored_pcd
@@ -134,13 +135,16 @@ def update_visualization(vis, point_cloud, new_pcd):
 
 if __name__ == "__main__":
     os.makedirs(
-        "./sam_lidar/", exist_ok=True,
+        "./sam_lidar/",
+        exist_ok=True,
     )
     os.makedirs(
-        "./sam_image/", exist_ok=True,
+        "./sam_image/",
+        exist_ok=True,
     )
     os.makedirs(
-        "./sam_lidar_segmented/", exist_ok=True,
+        "./sam_lidar_segmented/",
+        exist_ok=True,
     )
 
     vis = o3d.visualization.Visualizer()

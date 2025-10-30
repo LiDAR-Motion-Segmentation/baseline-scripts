@@ -56,7 +56,7 @@ def process_frame(
         points_camera_frame[:, 1],
         points_camera_frame[:, 2],
     )
-    r = np.sqrt(x ** 2 + y ** 2 + z ** 2)
+    r = np.sqrt(x**2 + y**2 + z**2)
     valid_indices = r > 0
     p_x, p_y, p_z = (
         x[valid_indices] / r[valid_indices],
