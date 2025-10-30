@@ -16,19 +16,19 @@ def load_calibration_yaml(calib_path: str | Path) -> tuple[np.ndarray, np.ndarra
     R = np.array(
         [
             [
-                1 - 2 * qy**2 - 2 * qz**2,
+                1 - 2 * qy ** 2 - 2 * qz ** 2,
                 2 * qx * qy - 2 * qz * qw,
                 2 * qx * qz + 2 * qy * qw,
             ],
             [
                 2 * qx * qy + 2 * qz * qw,
-                1 - 2 * qx**2 - 2 * qz**2,
+                1 - 2 * qx ** 2 - 2 * qz ** 2,
                 2 * qy * qz - 2 * qx * qw,
             ],
             [
                 2 * qx * qz - 2 * qy * qw,
                 2 * qy * qz + 2 * qx * qw,
-                1 - 2 * qx**2 - 2 * qy**2,
+                1 - 2 * qx ** 2 - 2 * qy ** 2,
             ],
         ]
     )
@@ -46,7 +46,7 @@ def project_lidar_to_equirect(
     h = intrinsics["height"]
     w = intrinsics["width"]
     x, y, z = points_cam[:, 0], points_cam[:, 1], points_cam[:, 2]
-    r = np.sqrt(x**2 + y**2 + z**2) + 1e-7
+    r = np.sqrt(x ** 2 + y ** 2 + z ** 2) + 1e-7
     theta = np.arctan2(x, z)
     phi = np.arcsin(y / r)
     u = ((theta + np.pi) / (2 * np.pi)) * w

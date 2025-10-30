@@ -68,11 +68,9 @@ def main():
                     (lidar_ts, lidar_data, lidar_conn, camera_msgs[img_ptr])
                 )
 
-        for idx, (
-            lidar_ts,
-            lidar_data,
-            lidar_conn,
-            (img_ts, img_data, img_conn),
+        for (
+            idx,
+            (lidar_ts, lidar_data, lidar_conn, (img_ts, img_data, img_conn),),
         ) in enumerate(sync_pairs):
             try:
                 # --- Process image ---

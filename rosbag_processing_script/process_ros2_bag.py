@@ -210,11 +210,9 @@ def main():
     processed_lidar_timestamps = set()
 
     # Process primary camera pairs
-    for idx, (
-        lidar_ts,
-        lidar_data,
-        lidar_type,
-        (img_ts, img_data, img_type),
+    for (
+        idx,
+        (lidar_ts, lidar_data, lidar_type, (img_ts, img_data, img_type),),
     ) in enumerate(sync_pairs_primary):
         try:
             # Process primary camera image
@@ -250,11 +248,9 @@ def main():
 
     # Process secondary camera pairs (if dual camera mode)
     if args.multi_camera:
-        for idx, (
-            lidar_ts,
-            lidar_data,
-            lidar_type,
-            (img_ts, img_data, img_type),
+        for (
+            idx,
+            (lidar_ts, lidar_data, lidar_type, (img_ts, img_data, img_type),),
         ) in enumerate(sync_pairs_secondary):
             try:
                 # Process secondary camera image
@@ -277,11 +273,9 @@ def main():
             except Exception as e:
                 print(f"Error processing secondary pair {idx+1}: {e}")
 
-        for idx, (
-            lidar_ts,
-            lidar_data,
-            lidar_type,
-            (img_ts, img_data, img_type),
+        for (
+            idx,
+            (lidar_ts, lidar_data, lidar_type, (img_ts, img_data, img_type),),
         ) in enumerate(sync_pairs_tertiary):
             try:
                 # Process tertiary camera image (360 degree camera)

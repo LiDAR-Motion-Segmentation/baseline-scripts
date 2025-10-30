@@ -46,7 +46,7 @@ jobs:
       run: |
         echo "Running smoke test..."
         # 1. Run with --help (fast check)
-        python3 image_video_object_tracking/advanced_annotater.py --help
+        python3 image_video_object_tracking/advanced_annotater_v2.py --help
         
         # 2. Run on a tiny dummy dataset (create dummy data first)
         mkdir -p test_data/images test_data/pcds test_output
@@ -58,7 +58,7 @@ jobs:
         # Run the script. It will fail on the 3-point check, which is fine.
         # We just want to ensure it runs without crashing on setup.
         # We use a special test config file
-        python3 image_video_object_tracking/advanced_annotater.py --data test_data/images --pcd_dir test_data/pcds --config test_config.yml --output_dir test_output
+        python3 image_video_object_tracking/advanced_annotater_v2.py --data test_data/images --pcd_dir test_data/pcds --config test_config.yml --output_dir test_output
 
     - name: Upload test artifacts
       # 'always()' ensures this runs even if the smoke test fails, so we can see the logs
@@ -69,35 +69,35 @@ jobs:
         path: test_output/
 
   # Job 2: Package and Push Docker Image
-  package-docker:
-    name: Package and Push Docker Image
-    needs: build-and-test
-    runs-on: ubuntu-latest
-    # Only run this job when pushing to the 'main' branch (i.e., not on Pull Requests)
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+  # package-docker:
+  #   name: Package and Push Docker Image
+  #   needs: build-and-test
+  #   runs-on: ubuntu-latest
+  #   # Only run this job when pushing to the 'main' branch (i.e., not on Pull Requests)
+  #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
-    steps:
-    - name: Check out repository
-      uses: actions/checkout@v4
+  #   steps:
+  #   - name: Check out repository
+  #     uses: actions/checkout@v4
 
-    - name: Log in to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        # 'github.actor' is your GitHub username
-        username: ${{ github.actor }}
-        # 'GITHUB_TOKEN' is a special secret automatically provided by GitHub Actions
-        password: ${{ secrets.GITHUB_TOKEN }}
+  #   - name: Log in to GitHub Container Registry
+  #     uses: docker/login-action@v3
+  #     with:
+  #       registry: ghcr.io
+  #       # 'github.actor' is your GitHub username
+  #       username: ${{ github.actor }}
+  #       # 'GITHUB_TOKEN' is a special secret automatically provided by GitHub Actions
+  #       password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: ./Dockerfile
-        push: true
-        # This tags the image with your repo name and a unique ID (the git commit SHA)
-        # Example: ghcr.io/your-username/your-repo:a1b2c3d
-        # tags: ghcr.io/${{ github.repository }}:${{ github.sha }}
-        # This also tags the image as 'latest'
-        # Example: ghcr.io/your-username/your-repo:latest
-        tags: ghcr.io/s0um0r0y/annotation3d:latest
+  #   - name: Build and push Docker image
+  #     uses: docker/build-push-action@v5
+  #     with:
+  #       context: .
+  #       file: ./Dockerfile
+  #       push: true
+  #       # This tags the image with your repo name and a unique ID (the git commit SHA)
+  #       # Example: ghcr.io/your-username/your-repo:a1b2c3d
+  #       # tags: ghcr.io/${{ github.repository }}:${{ github.sha }}
+  #       # This also tags the image as 'latest'
+  #       # Example: ghcr.io/your-username/your-repo:latest
+  #       tags: ghcr.io/s0um0r0y/annotation3d:latest
