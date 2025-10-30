@@ -101,7 +101,7 @@ RUN echo 'source /usr/share/bash-completion/bash_completion' | sudo tee -a ~/.ba
     echo 'eval "$(register-python-argcomplete3 colcon)"' | sudo tee -a ~/.bashrc > /dev/null
 
 # Use a slim Python 3.10 base image
-FROM python:3.10-slim
+# FROM python:3.10-slim
 
 WORKDIR /app
 
@@ -122,7 +122,7 @@ COPY . .
 
 # Download the production models into the image
 # This bundles the models, so you don't download them every time you run
-RUN mkdir -p weights && \
+RUN pip install wget && mkdir -p weights && \
     wget https://github.com/ultralytics/assets/releases/download/v0.0.0/yolov8l.pt -O weights/yolov8l.pt && \
     wget https://huggingface.co/lkeab/hq-sam/resolve/main/sam_hq_vit_l.pth -O weights/sam_hq_vit_l.pth
 
