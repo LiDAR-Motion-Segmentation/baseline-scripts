@@ -100,3 +100,21 @@ def setup_environment(
         device=device, paths=paths, lidar_to_cam_matrix=lidar_to_cam_matrix
     )
 
+
+def load_models(config: Dict[str, Any], device: torch.device) -> Models:
+    print("lodaing models")
+
+    detection_model = AutoDetectionModel.from_pretrained(
+        model_type="yolov8",
+        model_path=config["paths"]["yolo_model"],
+        confidence_threshold=config["detection"]["confidence_threshold"],
+        device=device,
+    )
+
+    sam = sam_model_registry[config["models"]["sam_model_type"]]()
+    state_dict = torch.load(config["paths"]["sam_checkpoint"], map_location="cpu")
+    sam.load_state_dict(state_dict)
+    sam.to(device=device)
+    sam_predictor = SamPredictor(sam)
+
+    return Models(detection_model=detection_model, sam_predictor=sam_predictor)
