@@ -83,7 +83,7 @@ def setup_environment(
         "labels_json": output_dir_path / "labels_json",
         "visualizations": output_dir_path / "visualizations",
     }
-    for path in path.values():
+    for path in paths.values():
         if isinstance(path, Path):
             path.mkdir(parents=True, exist_ok=True)
 
