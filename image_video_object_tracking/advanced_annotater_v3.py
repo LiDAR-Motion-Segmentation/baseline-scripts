@@ -53,3 +53,49 @@ class ObjectData:
     json_obj: Dict[str, Any]
     label: str
     yolo_txt_line: Optional[str]
+
+
+def get_center_point(bbox: np.ndarray) -> tuple[float, float]:
+    return (bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2
+
+
+def setup_environment(
+    config: Dict[str, Any], data_dir: str, pcd_dir: str, output_dir: Optional[str]
+) -> EnvironmentSetting:
+
+    print("Executing setting up environment code")
+
+    device = torch.device(
+        config["models"]["device"] or ("cuda" if torch.cuda_is_available() else "cpu")
+    )
+
+    data_path = Path(data_dir)
+    if not output_dir:
+        output_dir_path = data_path.parent / f"{data_path.stem}_advanced_annotations"
+    else:
+        output_dir_path = Path(output_dir)
+
+    paths = {
+        "data": data_path,
+        "pcd": Path(pcd_dir),
+        "output": output_dir_path,
+        "labels_txt": output_dir_path / "labels_txt",
+        "labels_json": output_dir_path / "labels_json",
+        "visualizations": output_dir_path / "visualizations",
+    }
+    for path in path.values():
+        if isinstance(path, Path):
+            path.mkdir(parents=True, exist_ok=True)
+
+    # ros2_numpy version
+    extr = config["calib"]["extrinsics"]
+    t = extr["translation"]
+    q = extr["rotation"]
+    translation_m = ros2_numpy.geometry.transformations.translation_matrix(t)
+    rotation_m = ros2_numpy.geometry.transformations.quaternion_matrix(q)
+    T_lidar_camera = np.dot(translation_m, rotation_m)
+    lidar_to_cam_matrix = np.linalg.inv(T_lidar_camera)
+
+    return EnvironmentSetting(
+        device=device, paths=paths, lidar_to_cam_matrix=lidar_to_cam_matrix
+    )
