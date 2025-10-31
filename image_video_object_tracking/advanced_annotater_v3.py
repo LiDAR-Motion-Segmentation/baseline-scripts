@@ -66,7 +66,7 @@ def setup_environment(
     print("Executing setting up environment code")
 
     device = torch.device(
-        config["models"]["device"] or ("cuda" if torch.cuda_is_available() else "cpu")
+        config["models"]["device"] or ("cuda" if torch.cuda.is_available() else "cpu")
     )
 
     data_path = Path(data_dir)
@@ -99,3 +99,4 @@ def setup_environment(
     return EnvironmentSetting(
         device=device, paths=paths, lidar_to_cam_matrix=lidar_to_cam_matrix
     )
+
