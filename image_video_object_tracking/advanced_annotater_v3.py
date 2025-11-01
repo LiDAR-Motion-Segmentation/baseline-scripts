@@ -49,6 +49,13 @@ class FrameData:
 
 
 @dataclass
+class ObjectProperties3D:
+    center: np.ndarray = np.ndarray([0, 0, 0])
+    scale: np.ndarray = np.ndarray([0, 0, 0])
+    angle_z: float = 0.0
+
+
+@dataclass
 class ObjectData:
     json_obj: Dict[str, Any]
     label: str
@@ -188,3 +195,146 @@ def run_2d_pipeline(
     tracked_detection = tracked_detection[tracked_detection.tracker_id != None]
 
     return tracked_detection
+
+
+def project_lidar_to_image(
+    points_3d_lidar: np.ndarray,
+    frame_shape: Tuple[int, int],
+    lidar_to_cam_matrix: np.ndarray,
+) -> np.ndarray:
+    H, W = frame_shape
+
+    # lidar points -> 3d cam space using spherical equipolar projection
+    points_homogeneous = np.hstack(
+        [points_3d_lidar, np.ones((points_3d_lidar.shape[0], 1))]
+    )
+    points_3d_cam = (lidar_to_cam_matrix @ points_homogeneous.T).T[:, :3]
+    x, y, z = points_3d_cam[:, 0], points_3d_cam[:, 1], points_3d_cam[:, 2]
+    r = np.sqrt(x**2 + y**2 + z**2)
+
+    points_2d = np.full((x.shape[0], 2), -1.0)
+    valid_indices = r > 0.001
+
+    x_valid, y_valid, z_valid, r_valid = (
+        x[valid_indices],
+        y[valid_indices],
+        z[valid_indices],
+        r[valid_indices],
+    )
+    p_x, p_y, p_z = x_valid / r_valid, y_valid / r_valid, z_valid / r_valid
+
+    p_y = np.clip(p_y, -1.0, 1.0)
+    phi = np.arcsin(p_y)
+    theta = np.arctan2(p_x, p_z)
+
+    u_coords = (theta * W / (2 * np.pi)) + (W / 2)
+    v_coords = (phi * H / np.pi) + (H / 2)
+
+    points_2d[valid_indices] = np.vstack((u_coords, v_coords)).T
+    return points_2d
+
+
+def run_segmentation(
+    frame: np.ndarray,
+    detections: sv.Detections,
+    sam_predictor: SamPredictor,
+    device: torch.device,
+) -> sv.Detections:
+    if len(detections) == 0:
+        return detections
+
+    # Resize frame and boxes for SAM
+    H, W, _ = frame.shape
+    scale = 1024 / max(H, W)
+
+    frame_for_sam = cv2.resize(frame, (int(W * scale), int(H * scale)))
+    sam_predictor.set_image(frame_for_sam)
+    scaled_boxes = detections.xyxy * scale
+
+    # mask
+    masks_tensor, _, _ = sam_predictor.predict_torch(
+        point_coords=None,
+        point_labels=None,
+        boxes=torch.tensor(scaled_boxes).to(device),
+        multimask_output=False,
+    )
+    masks_np = masks_tensor.cpu().numpy()  # shape (N, 1, H_scaled, W_scaled)
+
+    # resizing the mask to the orignal image
+    num_detections = len(detections)
+    final_masks = np.zeros((num_detections, H, W), dtype=bool)
+    for idx, mask in enumerate(masks_np):
+        mask_2d = mask.squeeze()  # (H_scaled, W_scaled)
+        resize_mask = cv2.resize(
+            mask_2d.astype(np.uint8), (W, H), interpolation=cv2.INTER_NEAREST
+        ).astype(bool)
+        final_masks[idx] = resize_mask
+
+    detections.mask = final_masks
+    return detections
+
+
+def compute_3d_object_properties(
+    point_cluster: np.ndarray, track_id: int
+) -> Optional[ObjectProperties3D]:
+    if point_cluster.shape[0] < 4:
+        return None  # not enough points
+
+    cluster_pcd = o3d.geometry.PointCloud()
+    cluster_pcd.points = o3d.utility.Vector3dVector(point_cluster)
+
+    # RANSAC ground removal
+    try:
+        plane_model, inliers = cluster_pcd.segement_plane(
+            distance_threshold=0.05, ransac_n=3, num_iterations=100
+        )
+        outlier_cloud = cluster_pcd.select_by_index(inliers, invert=True)
+    except Exception as e:
+        print(f"  RANSAC failed for track {track_id}: {e}")
+        outlier_cloud = cluster_pcd  # Fallback
+
+    # Calculate 3D Bounding Box
+    if len(outlier_cloud.points) < 4:
+        return None  # Not enough points after RANSAC
+
+    # check the box orientation code once
+    try:
+        oriented_bbox_3d = outlier_cloud.get_oriented_bounding_box()
+        return ObjectProperties3D(
+            center=oriented_bbox_3d.center,
+            scale=oriented_bbox_3d.extent,
+            angle_z=np.arctan2(oriented_bbox_3d.R[1, 0], oriented_bbox_3d.R[0, 0]),
+        )
+    except RuntimeError as e:
+        print(f"  Qhull error for track {track_id}: {e}. Cluster is degenerate.")
+        return None
+
+
+def update_tracking_state(
+    track_id: int,
+    props_3d: ObjectProperties3D,
+    center_2d: Tuple[float, float],
+    tracker_history: Dict,
+    config: Dict[str, Any],
+) -> Tuple[str, Dict]:
+    obj_status = "people.moving"
+    static_frames = 0
+    center_3d = props_3d.center
+
+    if track_id in tracker_history:
+        last_center_3d, last_center_2d, static_frames = tracker_history[track_id]
+        distance_2d = math.dist(center_2d, last_center_2d)
+
+        if distance_2d < config["tracking"]["movement_threshold_pixels"]:
+            static_frames += 1
+        else:
+            static_frames = 0
+
+        if static_frames >= config["tracking"]["static_frame_count_threshold"]:
+            obj_status = "people.static"
+
+        tracker_history[track_id] = (center_3d, center_2d, static_frames)
+    else:
+        tracker_history[track_id] = (center_3d, center_2d, 0)
+
+    return obj_status, tracker_history
