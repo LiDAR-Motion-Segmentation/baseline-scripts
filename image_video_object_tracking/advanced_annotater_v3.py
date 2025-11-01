@@ -23,7 +23,7 @@ from dataclasses import dataclass
 class EnvironmentSetting:
     device: torch.device
     paths: Dict[str, Path]
-    lidar_to_cam_matrix: np.array
+    lidar_to_cam_matrix: np.ndarray
 
 
 @dataclass
@@ -118,3 +118,73 @@ def load_models(config: Dict[str, Any], device: torch.device) -> Models:
     sam_predictor = SamPredictor(sam)
 
     return Models(detection_model=detection_model, sam_predictor=sam_predictor)
+
+
+def initialize_tools(config: Dict[str, Any]) -> Tools:
+    print("initialized tools")
+
+    tracker = sv.ByteTrack()
+    box_annotator = sv.BoxAnnotator(thickness=2)
+    mask_annotator = sv.MaskAnnotator(opacity=0.4)
+
+    label_annotater = sv.LabelAnnotator(text_scale=0.6, text_color=sv.Color.BLACK)
+
+    return Tools(
+        tracker=tracker,
+        box_annotater=box_annotator,
+        mask_annotater=mask_annotator,
+        label_annotater=label_annotater,
+    )
+
+
+def load_frame_data(
+    image_path: Path, pcd_base_path: Path
+) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+    frame = cv2.imread(str(image_path))
+    pcd_file = pcd_base_path / f"{image_path.stem}.pcd"
+
+    if not pcd_file.exists():
+        print(f"Warning: Point cloud not found for {image_path.name}. Skipping.")
+        return None
+
+    pcd = o3d.io.read_point_cloud(str(pcd_file))
+    points_3d_lidar = np.asarray(pcd.points)
+
+    if frame is None:
+        print(f"Warning: Could not read image {image_path.name}. Skipping.")
+        return None
+
+    return frame, points_3d_lidar
+
+
+def run_2d_pipeline(
+    frame: np.ndarray, models: Models, tools: Tools, config: Dict[str, Any]
+) -> sv.Detections:
+    sahi_result = get_sliced_prediction(
+        frame,
+        models.detection_model,
+        slice_height=config["sahi"]["slice_height"],
+        slice_width=config["sahi"]["slice_width"],
+        overlap_height_ratio=config["sahi"]["overlap_ratio"],
+        overlap_width_ratio=config["sahi"]["overlap_ratio"],
+    )
+
+    xyxy_list, confidence_list, class_id_list = [], [], []
+    if sahi_result.object_prediction_list:
+        for pred in sahi_result.object_prediction_list:
+            xyxy_list.append(pred.bbox.to_xyxy())
+            confidence_list.append(pred.score.value)
+            class_id_list.append(pred.category.id)
+
+    detections = sv.Detections(
+        xyxy=np.array(xyxy_list),  # size (0,4)
+        confidence=np.array(confidence_list),  # size (0)
+        class_id=np.array(class_id_list).astype(int),  # size (0)
+    )
+
+    detections = detections[detections.class_id == 0]  # filtering people
+    detections = detections.with_nms(threshold=config["detection"]["nms_theshold"])
+    tracked_detection = tools.tracker.update_with_detections(detections)
+    tracked_detection = tracked_detection[tracked_detection.tracker_id != None]
+
+    return tracked_detection
