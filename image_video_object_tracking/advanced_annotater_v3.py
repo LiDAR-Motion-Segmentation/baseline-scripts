@@ -338,3 +338,97 @@ def update_tracking_state(
         tracker_history[track_id] = (center_3d, center_2d, 0)
 
     return obj_status, tracker_history
+
+
+def format_yolo_txt_output(
+    class_id: int, mask: np.ndarray, frame_shape: Tuple[int, int]
+) -> Optional[str]:
+    H, W = frame_shape
+    if np.any(mask):
+        polygons = sv.mask_to_polygons(mask)
+        if polygons:
+            segment = polygons[0] / np.array([W, H])
+            segment_str = " ".join(map(str, segment.flatten()))
+            return f"{class_id} {segment_str}"
+    return None
+
+
+def format_json_output(
+    track_id: int, obj_status: str, props_3d: ObjectProperties3D
+) -> Dict[str, Any]:
+    return {
+        "obj_id": str(track_id),
+        "obj_type": obj_status,
+        "psr": {
+            "position": {
+                "x": float(props_3d.center[0]),
+                "y": float(props_3d.center[1]),
+                "z": float(props_3d.center[2]),
+            },
+            "rotation": {"x": 0, "y": 0, "z": float(props_3d.angle_z)},
+            "scale": {
+                "x": float(props_3d.scale[0]),
+                "y": float(props_3d.scale[1]),
+                "z": float(props_3d.scale[2]),
+            },
+        },
+    }
+
+
+def process_frame_detection(
+    frame_data: FrameData, tracker_history: Dict, config: Dict[str, Any]
+) -> Tuple[List[Dict], List[str], sv.Detections, Dict]:
+
+    json_frame_data = []
+    yolo_text_lines = []
+    valid_detections_for_viz = []
+    custom_labels_for_viz = []
+    frame_shape_hw = frame_data.frame.shape[:2]
+
+    for idx in range(len(frame_data.detections)):
+        detection = frame_data.detections[idx]
+        bbox_2d, mask, track_id, class_id = (
+            detection.xyxy[0],
+            detection.mask[0],
+            detection.tracker_id[0],
+            detection.class_id[0],
+        )
+
+        # finding 3D point cluster
+        u, v = frame_data.points_2d_image[:, 0], frame_data.points_2d_image[:, 1]
+        mask_in_box = (
+            (u >= bbox_2d[0]) & (u < bbox_2d[2]) & (v >= bbox_2d[1]) & (v < bbox_2d[3])
+        )
+        point_cluster = frame_data.points_3d_lidar[mask_in_box]
+
+        # compute 3d properties
+        props_3d = compute_3d_object_properties(point_cluster, track_id)
+        if props_3d is None:
+            props_3d = (
+                ObjectProperties3D()
+            )  # using the default as of now migth need to change in future
+
+        # update state
+        center_2d = get_center_point(bbox_2d)
+        obj_status, tracker_history = update_tracking_state(
+            track_id, props_3d, center_2d, tracker_history, config
+        )
+
+        json_obj = format_json_output(track_id, obj_status, props_3d)
+        yolo_line = format_yolo_txt_output(class_id, mask, frame_shape_hw)
+
+        json_frame_data.append(json_obj)
+        if yolo_line:
+            yolo_text_lines.append(yolo_line)
+
+        valid_detections_for_viz.append(detection)
+        custom_labels_for_viz.append(f"#{track_id} {obj_status.split('.')[1]}")
+
+    # this might fail need to check
+    if valid_detections_for_viz:
+        viz_detections = sv.Detections.merge(valid_detections_for_viz)
+        viz_detections.label = np.array(custom_labels_for_viz)
+    else:
+        viz_detections = sv.Detections.empty()
+
+    return json_frame_data, yolo_text_lines, viz_detections, tracker_history
