@@ -432,3 +432,173 @@ def process_frame_detection(
         viz_detections = sv.Detections.empty()
 
     return json_frame_data, yolo_text_lines, viz_detections, tracker_history
+
+
+def save_outputs(
+    frame: np.ndarray,
+    frame_path: Path,
+    json_data: List[Dict],
+    yolo_text_lines: List[str],
+    viz_detections: sv.Detections,
+    tools: Tools,
+    paths: Dict[str, Path],
+):
+    if json_data:
+        json_fn = paths["labels_json"] / f"{frame_path.stem}.json"
+        with open(json_fn, "w", encoding="utf-8") as f:
+            json.dump(json_data, f, indent=2)
+
+    if yolo_text_lines:
+        label_fn = paths["labels_txt"] / f"{frame_path.stem}.txt"
+        with open(label_fn, "w", encoding="utf-8") as f:
+            f.write("\n".join(yolo_text_lines))
+
+    annotated_frame = frame.copy()
+    if len(viz_detections) > 0:
+        if viz_detections.mask is not None:
+            annotated_frame = tools.mask_annotater.annotate(
+                annotated_frame, viz_detections
+            )
+        annotated_frame = tools.box_annotater.annotate(annotated_frame, viz_detections)
+        annotated_frame = tools.label_annotater.annotate(
+            annotated_frame, viz_detections
+        )
+
+    viz_fn = paths["visualization"] / frame_path.name
+    cv2.imwrite(str(viz_fn), annotated_frame)
+
+
+def run_processing_pipeline(
+    config: Dict[str, Any], data_dir: str, pcd_dir: str, output_dir: Optional[str]
+):
+    env = setup_environment(config, data_dir, pcd_dir, output_dir)
+    models = load_models(config, env.device)
+    tools = initialize_tools(config)
+
+    tracker_history = {}
+    image_paths = sorted(
+        [
+            p
+            for p in env.paths["data"].glob("*")
+            if p.suffix.lower() in [".png", ".jpg", ".jpeg"]
+        ]
+    )
+
+    for i, image_path in enumerate(image_paths):
+        vis_fn = env.paths["visualizations"] / image_paths.name
+        json_fn = env.paths["labels_json"] / f"{image_paths.stem}.json"
+        label_fn = env.paths["labels_txt"] / f"{image_paths.stem}.txt"
+
+        if vis_fn.exists() and json_fn.exists() and label_fn.exists():
+            print(f"Skipping already processed frame: {image_path.name}")
+            continue
+
+        print(f"Processing frame {i+1}/{len(image_paths)}: {image_path.name}")
+
+        try:
+            frame_data_tuple = load_frame_data(image_path, env.paths["pcd"])
+            if frame_data_tuple is None:
+                continue
+            frame, points_3d_lidar = frame_data_tuple
+
+            points_2d = project_lidar_to_image(
+                points_3d_lidar, frame.shape[:2], env.lidar_to_cam_matrix
+            )
+
+            detections = run_2d_pipeline(frame, models, tools.tracker, config)
+            if len(detections) == 0:
+                cv2.imwrite(str(vis_fn), frame)  # Save original frame
+                continue
+
+            frame_data = FrameData(
+                frame=frame,
+                points_3d_lidar=points_3d_lidar,
+                points_2d_image=points_2d,
+                detections=detections,
+            )
+
+            # Process Detections (3D BBox, State, Formatting)
+            json_data, yolo_lines, viz_detections, tracker_history = (
+                process_frame_detection(frame_data, tracker_history, config)
+            )
+
+            save_outputs(
+                frame,
+                image_path,
+                json_data,
+                yolo_lines,
+                viz_detections,
+                tools,
+                env.paths,
+            )
+            print(f"Frame {image_path.name} processed. Results saved.")
+
+        except RuntimeError as e:
+            if "CUDA out of memory" in str(e):
+                print(f"CUDA out of memory on frame {image_path.name}, skipping")
+                torch.cuda.empty_cache()
+                time.sleep(10)
+                continue
+            elif "qhull input error" in str(e):
+                print(
+                    f"Qhull error (degenerate cluster) on frame {image_path.name}, skipping 3D properties."
+                )
+                continue
+            else:
+                print(f"RuntimeError on {image_path.name}: {e}")
+                continue
+        except Exception as e:
+            print(f"Unhandled exception processing {image_path.name}: {e}")
+            continue
+
+
+def main():
+    """
+    Parses arguments, loads config, and starts the processing pipeline.
+    """
+    parser = argparse.ArgumentParser(
+        description="Advanced annotation and tracking with YOLO, SAHI, SAM, ByteTrack"
+    )
+    parser.add_argument(
+        "--data",
+        type=str,
+        required=True,
+        help="Path to the directory containing input image frames.",
+    )
+    parser.add_argument(
+        "--pcd_dir",
+        type=str,
+        required=True,
+        help="Path to the directory of corresponding .pcd files.",
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default=None,
+        help="Path to the directory where all results will be saved. (Optional)",
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="config.yml",
+        help="Path to the configuration YAML file. (Optional)",
+    )
+    args = parser.parse_args()
+
+    try:
+        with open(args.config, "r") as f:
+            config = yaml.safe_load(f)
+    except FileNotFoundError:
+        print(f"Error: Config file not found at {args.config}")
+        exit()
+
+    run_processing_pipeline(
+        config=config,
+        data_dir=args.data,
+        pcd_dir=args.pcd_dir,
+        output_dir=args.output_dir,
+    )
+
+
+if __name__ == "__main__":
+    main()
