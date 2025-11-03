@@ -427,7 +427,8 @@ def process_frame_detection(
     # this might fail need to check
     if valid_detections_for_viz:
         viz_detections = sv.Detections.merge(valid_detections_for_viz)
-        viz_detections.label = np.array(custom_labels_for_viz)
+        viz_detections.data["label"] = np.array(custom_labels_for_viz)
+        # viz_detections.label = np.array(custom_labels_for_viz)
     else:
         viz_detections = sv.Detections.empty()
 
