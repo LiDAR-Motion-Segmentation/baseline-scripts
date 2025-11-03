@@ -95,7 +95,7 @@ def setup_environment(
             path.mkdir(parents=True, exist_ok=True)
 
     # ros2_numpy version
-    extr = config["calib"]["extrinsics"]
+    extr = config["calibration"]["extrinsics"]
     t = extr["translation"]
     q = extr["rotation"]
     translation_m = ros2_numpy.geometry.transformations.translation_matrix(t)
@@ -114,7 +114,7 @@ def load_models(config: Dict[str, Any], device: torch.device) -> Models:
     detection_model = AutoDetectionModel.from_pretrained(
         model_type="yolov8",
         model_path=config["paths"]["yolo_model"],
-        confidence_threshold=config["detection"]["confidence_threshold"],
+        confidence_threshold=config["detection_params"]["confidence_threshold"],
         device=device,
     )
 
@@ -170,10 +170,10 @@ def run_2d_pipeline(
     sahi_result = get_sliced_prediction(
         frame,
         models.detection_model,
-        slice_height=config["sahi"]["slice_height"],
-        slice_width=config["sahi"]["slice_width"],
-        overlap_height_ratio=config["sahi"]["overlap_ratio"],
-        overlap_width_ratio=config["sahi"]["overlap_ratio"],
+        slice_height=config["sahi_params"]["slice_height"],
+        slice_width=config["sahi_params"]["slice_width"],
+        overlap_height_ratio=config["sahi_params"]["overlap_ratio"],
+        overlap_width_ratio=config["sahi_params"]["overlap_ratio"],
     )
 
     xyxy_list, confidence_list, class_id_list = [], [], []
@@ -190,7 +190,7 @@ def run_2d_pipeline(
     )
 
     detections = detections[detections.class_id == 0]  # filtering people
-    detections = detections.with_nms(threshold=config["detection"]["nms_theshold"])
+    detections = detections.with_nms(threshold=config["detection_params"]["nms_threshold"])
     tracked_detection = tools.tracker.update_with_detections(detections)
     tracked_detection = tracked_detection[tracked_detection.tracker_id != None]
 
@@ -485,9 +485,9 @@ def run_processing_pipeline(
     )
 
     for i, image_path in enumerate(image_paths):
-        vis_fn = env.paths["visualizations"] / image_paths.name
-        json_fn = env.paths["labels_json"] / f"{image_paths.stem}.json"
-        label_fn = env.paths["labels_txt"] / f"{image_paths.stem}.txt"
+        vis_fn = env.paths["visualizations"] / image_path.name
+        json_fn = env.paths["labels_json"] / f"{image_path.stem}.json"
+        label_fn = env.paths["labels_txt"] / f"{image_path.stem}.txt"
 
         if vis_fn.exists() and json_fn.exists() and label_fn.exists():
             print(f"Skipping already processed frame: {image_path.name}")
