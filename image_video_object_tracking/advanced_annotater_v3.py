@@ -133,7 +133,6 @@ def initialize_tools(config: Dict[str, Any]) -> Tools:
     tracker = sv.ByteTrack()
     box_annotator = sv.BoxAnnotator(thickness=2)
     mask_annotator = sv.MaskAnnotator(opacity=0.4)
-
     label_annotater = sv.LabelAnnotator(text_scale=0.6, text_color=sv.Color.BLACK)
 
     return Tools(
@@ -242,37 +241,45 @@ def run_segmentation(
     sam_predictor: SamPredictor,
     device: torch.device,
 ) -> sv.Detections:
+
     if len(detections) == 0:
+        detections.mask = np.empty((0, *frame.shape[:2]), dtype=bool)
         return detections
 
-    # Resize frame and boxes for SAM
-    H, W, _ = frame.shape
-    scale = 1024 / max(H, W)
+    if len(detections) > 0:
 
-    frame_for_sam = cv2.resize(frame, (int(W * scale), int(H * scale)))
-    sam_predictor.set_image(frame_for_sam)
-    scaled_boxes = detections.xyxy * scale
+        # Resize frame and boxes for SAM
+        H, W, _ = frame.shape
+        scale = 1024 / max(H, W)
+        frame_for_sam = cv2.resize(frame, (int(W * scale), int(H * scale)))
+        sam_predictor.set_image(frame_for_sam)
 
-    # mask
-    masks_tensor, _, _ = sam_predictor.predict_torch(
-        point_coords=None,
-        point_labels=None,
-        boxes=torch.tensor(scaled_boxes).to(device),
-        multimask_output=False,
-    )
-    masks_np = masks_tensor.cpu().numpy()  # shape (N, 1, H_scaled, W_scaled)
+        scaled_boxes = detections.xyxy * scale
 
-    # resizing the mask to the orignal image
-    num_detections = len(detections)
-    final_masks = np.zeros((num_detections, H, W), dtype=bool)
-    for idx, mask in enumerate(masks_np):
-        mask_2d = mask.squeeze()  # (H_scaled, W_scaled)
-        resize_mask = cv2.resize(
-            mask_2d.astype(np.uint8), (W, H), interpolation=cv2.INTER_NEAREST
-        ).astype(bool)
-        final_masks[idx] = resize_mask
+        # mask
+        masks_tensor, _, _ = sam_predictor.predict_torch(
+            point_coords=None,
+            point_labels=None,
+            boxes=torch.tensor(scaled_boxes).to(device),
+            multimask_output=False,
+        )
+        masks_np = masks_tensor.cpu().numpy()  # shape (N, 1, H_scaled, W_scaled)
 
-    detections.mask = final_masks
+        # resizing the mask to the orignal image
+        num_detections = len(detections)
+        final_masks = np.zeros((num_detections, H, W), dtype=bool)
+
+        for idx, mask in enumerate(masks_np):
+            mask_2d = mask.squeeze()  # (H_scaled, W_scaled)
+            resize_mask = cv2.resize(
+                mask_2d.astype(np.uint8),
+                (W, H),
+                interpolation=cv2.INTER_NEAREST,
+            ).astype(bool)
+            final_masks[idx] = resize_mask
+
+        detections.mask = final_masks
+
     return detections
 
 
@@ -510,8 +517,8 @@ def run_processing_pipeline(
 
         try:
             frame_data_tuple = load_frame_data(image_path, env.paths["pcd"])
-            if frame_data_tuple is None:
-                continue
+            # if frame_data_tuple is None:
+            #     continue
             frame, points_3d_lidar = frame_data_tuple
 
             points_2d = project_lidar_to_image(
@@ -519,12 +526,12 @@ def run_processing_pipeline(
             )
 
             detections = run_2d_pipeline(frame, models, tools, config)
-            if len(detections) == 0:
-                print(
-                    f"  No objects tracked in {image_path.name}. Saving original frame."
-                )
-                cv2.imwrite(str(vis_fn), frame)  # Save original frame
-                continue
+            # if len(detections) == 0:
+            #     print(
+            #         f"  No objects tracked in {image_path.name}. Saving original frame."
+            #     )
+            #     cv2.imwrite(str(vis_fn), frame)  # Save original frame
+            #     continue
 
             frame_data = FrameData(
                 frame=frame,
