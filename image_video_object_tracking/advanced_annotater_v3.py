@@ -190,7 +190,9 @@ def run_2d_pipeline(
     )
 
     detections = detections[detections.class_id == 0]  # filtering people
-    detections = detections.with_nms(threshold=config["detection_params"]["nms_threshold"])
+    detections = detections.with_nms(
+        threshold=config["detection_params"]["nms_threshold"]
+    )
     tracked_detection = tools.tracker.update_with_detections(detections)
     tracked_detection = tracked_detection[tracked_detection.tracker_id != None]
 
@@ -385,14 +387,24 @@ def process_frame_detection(
     custom_labels_for_viz = []
     frame_shape_hw = frame_data.frame.shape[:2]
 
-    for idx in range(len(frame_data.detections)):
-        detection = frame_data.detections[idx]
-        bbox_2d, mask, track_id, class_id = (
-            detection.xyxy[0],
-            detection.mask[0],
-            detection.tracker_id[0],
-            detection.class_id[0],
+    if frame_data.detections.mask is None:
+        print(
+            "Warning: Detections object has no mask attribute in process_frame_detections. Skipping frame."
         )
+        return json_frame_data, yolo_text_lines, sv.Detections.empty(), tracker_history
+
+    for idx in range(len(frame_data.detections)):
+        # bbox_2d, mask, track_id, class_id = (
+        #     detection.xyxy[0],
+        #     detection.mask[0],
+        #     detection.tracker_id[0],
+        #     detection.class_id[0],
+        # )
+        bbox_2d = frame_data.detections.xyxy[idx]
+        mask = frame_data.detections.mask[idx]
+        track_id = frame_data.detections.tracker_id[idx]
+        class_id = frame_data.detections.class_id[idx]
+        detection = frame_data.detections[idx]
 
         # finding 3D point cluster
         u, v = frame_data.points_2d_image[:, 0], frame_data.points_2d_image[:, 1]
@@ -465,7 +477,7 @@ def save_outputs(
             annotated_frame, viz_detections
         )
 
-    viz_fn = paths["visualization"] / frame_path.name
+    viz_fn = paths["visualizations"] / frame_path.name
     cv2.imwrite(str(viz_fn), annotated_frame)
 
 
@@ -506,8 +518,11 @@ def run_processing_pipeline(
                 points_3d_lidar, frame.shape[:2], env.lidar_to_cam_matrix
             )
 
-            detections = run_2d_pipeline(frame, models, tools.tracker, config)
+            detections = run_2d_pipeline(frame, models, tools, config)
             if len(detections) == 0:
+                print(
+                    f"  No objects tracked in {image_path.name}. Saving original frame."
+                )
                 cv2.imwrite(str(vis_fn), frame)  # Save original frame
                 continue
 
@@ -548,9 +563,12 @@ def run_processing_pipeline(
             else:
                 print(f"RuntimeError on {image_path.name}: {e}")
                 continue
-        except Exception as e:
-            print(f"Unhandled exception processing {image_path.name}: {e}")
-            continue
+
+        # except Exception as e:
+        #     print(f"Unhandled exception processing {image_path.name}: {e}")
+        #     continue
+
+    print(f"Full sequence processing complete. Results saved in: {env.paths['output']}")
 
 
 def main():
@@ -581,7 +599,7 @@ def main():
     parser.add_argument(
         "--config",
         type=str,
-        default="config.yml",
+        # default="config.yml",
         help="Path to the configuration YAML file. (Optional)",
     )
     args = parser.parse_args()
@@ -589,6 +607,11 @@ def main():
     try:
         with open(args.config, "r") as f:
             config = yaml.safe_load(f)
+
+            if config is None:
+                print(f"Error: Config file at {args.config} is empty or malformed.")
+                exit()
+
     except FileNotFoundError:
         print(f"Error: Config file not found at {args.config}")
         exit()
