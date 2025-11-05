@@ -16,7 +16,7 @@ import open3d as o3d
 from scipy.spatial.transform import Rotation as R
 import ros2_numpy
 from typing import Dict, Any, Tuple, List, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -50,8 +50,8 @@ class FrameData:
 
 @dataclass
 class ObjectProperties3D:
-    center: np.ndarray = np.ndarray([0, 0, 0])
-    scale: np.ndarray = np.ndarray([0, 0, 0])
+    center: np.ndarray = field(default_factory=lambda: np.zeros(3, dtype=float))
+    scale: np.ndarray = field(default_factory=lambda: np.zeros(3, dtype=float))
     angle_z: float = 0.0
 
 
@@ -109,7 +109,7 @@ def setup_environment(
 
 
 def load_models(config: Dict[str, Any], device: torch.device) -> Models:
-    print("lodaing models")
+    print("loading models")
 
     detection_model = AutoDetectionModel.from_pretrained(
         model_type="yolov8",
@@ -242,9 +242,9 @@ def run_segmentation(
     device: torch.device,
 ) -> sv.Detections:
 
-    if len(detections) == 0:
-        detections.mask = np.empty((0, *frame.shape[:2]), dtype=bool)
-        return detections
+    # if len(detections) == 0:
+    #     detections.mask = np.empty((0, *frame.shape[:2]), dtype=bool)
+    #     return detections
 
     if len(detections) > 0:
 
@@ -294,7 +294,7 @@ def compute_3d_object_properties(
 
     # RANSAC ground removal
     try:
-        plane_model, inliers = cluster_pcd.segement_plane(
+        plane_model, inliers = cluster_pcd.segment_plane(
             distance_threshold=0.05, ransac_n=3, num_iterations=100
         )
         outlier_cloud = cluster_pcd.select_by_index(inliers, invert=True)
@@ -334,12 +334,12 @@ def update_tracking_state(
         last_center_3d, last_center_2d, static_frames = tracker_history[track_id]
         distance_2d = math.dist(center_2d, last_center_2d)
 
-        if distance_2d < config["tracking"]["movement_threshold_pixels"]:
+        if distance_2d < config["tracking_params"]["movement_threshold_pixels"]:
             static_frames += 1
         else:
             static_frames = 0
 
-        if static_frames >= config["tracking"]["static_frame_count_threshold"]:
+        if static_frames >= config["tracking_params"]["static_frame_count_threshold"]:
             obj_status = "people.static"
 
         tracker_history[track_id] = (center_3d, center_2d, static_frames)
@@ -386,7 +386,7 @@ def format_json_output(
 
 def process_frame_detection(
     frame_data: FrameData, tracker_history: Dict, config: Dict[str, Any]
-) -> Tuple[List[Dict], List[str], sv.Detections, Dict]:
+) -> Tuple[List[Dict], List[str], List[Any], List[Any], Dict]:
 
     json_frame_data = []
     yolo_text_lines = []
@@ -532,6 +532,9 @@ def run_processing_pipeline(
             #     )
             #     cv2.imwrite(str(vis_fn), frame)  # Save original frame
             #     continue
+            detections = run_segmentation(
+                frame, detections, models.sam_predictor, env.device
+            )
 
             frame_data = FrameData(
                 frame=frame,
