@@ -14,6 +14,7 @@ import argparse
 import time
 import open3d as o3d
 from scipy.spatial.transform import Rotation as R
+from sklearn.decomposition import PCA
 import ros2_numpy
 from typing import Dict, Any, Tuple, List, Optional
 from dataclasses import dataclass, field
@@ -283,6 +284,34 @@ def run_segmentation(
     return detections
 
 
+def compute_pca_bounding_box(point_cluster: np.ndarray, track_id: int) -> Optional[ObjectProperties3D]:
+    if point_cluster.shape[0] < 3:
+        print(f"  Track {track_id}: Not enough points ({point_cluster.shape[0]}) for PCA.")
+        return None
+    
+    try:
+        pca = PCA(n_components=3)
+        pca.fit(point_cluster)
+        center_3d = pca.mean_
+        rotation_matrix = pca.components_.T
+        if np.linalg.det(rotation_matrix) < 0:
+            rotation_matrix[:, 2] *= -1
+        transformed_points = pca.transform(point_cluster)
+        min_vals = np.min(transformed_points, axis=0)
+        max_vals = np.max(transformed_points, axis=0)
+        scale_3d = max_vals - min_vals
+        angle_z = np.arctan2(rotation_matrix[1, 0], rotation_matrix[0, 0])
+        
+        return ObjectProperties3D(
+            center=center_3d,
+            scale=scale_3d,
+            angle_z=angle_z
+        )
+        
+    except Exception as e:
+        print(f" PCA failed for track {track_id}: {e}")
+        return None
+
 def compute_3d_object_properties(
     point_cluster: np.ndarray, track_id: int
 ) -> Optional[ObjectProperties3D]:
@@ -303,20 +332,23 @@ def compute_3d_object_properties(
         outlier_cloud = cluster_pcd  # Fallback
 
     # Calculate 3D Bounding Box
-    if len(outlier_cloud.points) < 4:
+    if len(outlier_cloud.points) < 3:
+        print(f"  Track {track_id}: Not enough points ({len(outlier_cloud.points)}) after RANSAC.")
         return None  # Not enough points after RANSAC
 
-    # check the box orientation code once
-    try:
-        oriented_bbox_3d = outlier_cloud.get_oriented_bounding_box()
-        return ObjectProperties3D(
-            center=oriented_bbox_3d.center,
-            scale=oriented_bbox_3d.extent,
-            angle_z=np.arctan2(oriented_bbox_3d.R[1, 0], oriented_bbox_3d.R[0, 0]),
-        )
-    except RuntimeError as e:
-        print(f"  Qhull error for track {track_id}: {e}. Cluster is degenerate.")
-        return None
+    return compute_pca_bounding_box(np.asarray(outlier_cloud.points), track_id)
+    
+    # check the box orientation code once (This for Qhull)
+    # try:
+    #     oriented_bbox_3d = outlier_cloud.get_oriented_bounding_box()
+    #     return ObjectProperties3D(
+    #         center=oriented_bbox_3d.center,
+    #         scale=oriented_bbox_3d.extent,
+    #         angle_z=np.arctan2(oriented_bbox_3d.R[1, 0], oriented_bbox_3d.R[0, 0]),
+    #     )
+    # except RuntimeError as e:
+    #     print(f"  Qhull error for track {track_id}: {e}. Cluster is degenerate.")
+    #     return None
 
 
 def update_tracking_state(
@@ -386,7 +418,7 @@ def format_json_output(
 
 def process_frame_detection(
     frame_data: FrameData, tracker_history: Dict, config: Dict[str, Any]
-) -> Tuple[List[Dict], List[str], List[Any], List[Any], Dict]:
+) -> Tuple[List[Dict], List[str], List[Any], Dict]:
 
     json_frame_data = []
     yolo_text_lines = []
