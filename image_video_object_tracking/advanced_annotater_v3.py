@@ -284,11 +284,15 @@ def run_segmentation(
     return detections
 
 
-def compute_pca_bounding_box(point_cluster: np.ndarray, track_id: int) -> Optional[ObjectProperties3D]:
+def compute_pca_bounding_box(
+    point_cluster: np.ndarray, track_id: int
+) -> Optional[ObjectProperties3D]:
     if point_cluster.shape[0] < 3:
-        print(f"  Track {track_id}: Not enough points ({point_cluster.shape[0]}) for PCA.")
+        print(
+            f"  Track {track_id}: Not enough points ({point_cluster.shape[0]}) for PCA."
+        )
         return None
-    
+
     try:
         pca = PCA(n_components=3)
         pca.fit(point_cluster)
@@ -301,16 +305,13 @@ def compute_pca_bounding_box(point_cluster: np.ndarray, track_id: int) -> Option
         max_vals = np.max(transformed_points, axis=0)
         scale_3d = max_vals - min_vals
         angle_z = np.arctan2(rotation_matrix[1, 0], rotation_matrix[0, 0])
-        
-        return ObjectProperties3D(
-            center=center_3d,
-            scale=scale_3d,
-            angle_z=angle_z
-        )
-        
+
+        return ObjectProperties3D(center=center_3d, scale=scale_3d, angle_z=angle_z)
+
     except Exception as e:
         print(f" PCA failed for track {track_id}: {e}")
         return None
+
 
 def compute_3d_object_properties(
     point_cluster: np.ndarray, track_id: int
@@ -333,11 +334,13 @@ def compute_3d_object_properties(
 
     # Calculate 3D Bounding Box
     if len(outlier_cloud.points) < 3:
-        print(f"  Track {track_id}: Not enough points ({len(outlier_cloud.points)}) after RANSAC.")
+        print(
+            f"  Track {track_id}: Not enough points ({len(outlier_cloud.points)}) after RANSAC."
+        )
         return None  # Not enough points after RANSAC
 
     return compute_pca_bounding_box(np.asarray(outlier_cloud.points), track_id)
-    
+
     # check the box orientation code once (This for Qhull)
     # try:
     #     oriented_bbox_3d = outlier_cloud.get_oriented_bounding_box()
