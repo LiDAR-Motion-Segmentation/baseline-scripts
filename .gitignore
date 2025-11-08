@@ -3,11 +3,14 @@
 *.pth
 /image_video_object_tracking/output_dir
 /image_video_object_tracking/my*
+/image_video_object_tracking/equirectangular
+/image_video_object_tracking/pcd
+.vscode
 /bag_annotation
 /annotation_sam2
 !devcontainer.json
 /output_dir
-
+/log
 Python
 
 pycache/

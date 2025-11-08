@@ -64,6 +64,14 @@ def parse_arguments() -> argparse.Namespace:
         nargs="+",
         help="A list of one or more image topics to synchronize (e.g., /cam1/image /cam2/image).",
     )
+    parser.add_argument(
+        "--slop", type=float, default=0.05,
+        help="Synchronization time tolerance in seconds. (Default: 0.05s / 50ms)"
+    )
+    parser.add_argument(
+        "--queue_size", type=int, default=100,
+        help="Maximum number of messages to buffer for each topic. (Default: 100)"
+    )
 
     return parser.parse_args()
 
