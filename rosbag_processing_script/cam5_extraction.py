@@ -47,7 +47,7 @@ def save_camera_params(msg, intrinsics_path, distortion_path):
 
 
 def main():
-    save_path = "../data/nexus_lower_ground_2"
+    save_path = "data_extraction"
     os.makedirs(os.path.join(save_path, "pcd"), exist_ok=True)
     os.makedirs(os.path.join(save_path, "camera1"), exist_ok=True)
     os.makedirs(os.path.join(save_path, "camera2"), exist_ok=True)
@@ -57,7 +57,7 @@ def main():
 
     reader = rosbag2_py.SequentialReader()
     bag_path = os.path.expanduser(
-        "/home/container_user/omni_data/bags/nexus_lower_ground_2/rosbag/rosbag_0.db3"
+        "/scratch2/soumo_roy/nexus_mall_bags/nexus_lower_ground_2/rosbag/rosbag_0.db3"
     )
     storage_options = rosbag2_py.StorageOptions(uri=bag_path, storage_id="sqlite3")
     converter_options = rosbag2_py.ConverterOptions("", "")
