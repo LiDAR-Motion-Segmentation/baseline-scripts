@@ -7,7 +7,7 @@ CAMERA_TOPIC_3="/camera3/camera3/color/image_raw"
 CAMERA_TOPIC_4="/camera4/camera4/color/image_raw"
 CAMERA_TOPIC_5="/camera5/camera5/color/image_raw"
 LIDAR_TOPIC="/livox/lidar"
-OUTPUT_DIR="/scratch2/soumo_roy/extracted_data"
+OUTPUT_DIR="extracted_data"
 
 python3 extract_synced_data_multi_cam.py \
     --bag_file "$BAG_FILE" \
