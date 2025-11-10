@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = ["annotate_anything_v2"]
+version = "0.0.1"
+description = "Automatic 3D pointcloud annotation tool"
+requires-python = "==3.12.2"
+readme = "README.md"
+dependencies = [
+    "numpy",
+    "opencv-python", 
+    "torch",
+    "torchvision",
+    "supervision",
+    "sahi",
+    "ultralytics",
+    "segment-anything-hq",
+    "open3d",
+    "scipy",
+    "pyyaml",
+    "ros2-numpy",
+    "black",
+    "timm",
+    "scikit-learn",
+]
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cpu", marker = "sys_platform != 'linux'" },
+  { index = "pytorch-cu121", marker = "sys_platform == 'linux'" },
+]
+torchvision = [
+  { index = "pytorch-cpu", marker = "sys_platform != 'linux'" },
+  { index = "pytorch-cu121", marker = "sys_platform == 'linux'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
+explicit = true
