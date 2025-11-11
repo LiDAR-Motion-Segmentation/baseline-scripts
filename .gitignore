@@ -11,6 +11,7 @@
 !devcontainer.json
 /output_dir
 /log
+/rosbag_processing_script/data_extraction
 Python
 
 pycache/

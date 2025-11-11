@@ -61,12 +61,15 @@ def download_sam2_checkpoint(model_size="large"):
 
         total_size = int(response.headers.get("content-length", 0))
 
-        with open(checkpoint_path, "wb") as f, tqdm(
-            desc=f"Downloading {checkpoint_name}",
-            total=total_size,
-            unit="B",
-            unit_scale=True,
-        ) as pbar:
+        with (
+            open(checkpoint_path, "wb") as f,
+            tqdm(
+                desc=f"Downloading {checkpoint_name}",
+                total=total_size,
+                unit="B",
+                unit_scale=True,
+            ) as pbar,
+        ):
             for chunk in response.iter_content(chunk_size=8192):
                 if chunk:
                     f.write(chunk)
