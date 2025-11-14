@@ -6,7 +6,7 @@ import cv2
 import open3d as o3d
 from scipy.spatial.transform import Rotation as R
 import json
-from sklearn import DBSCAN
+from sklearn.cluster import DBSCAN
 
 
 class CameraConfig:
@@ -113,11 +113,14 @@ def save_3d_annotations_json(
 ) -> None:
     annotations = []
     for i, pts in enumerate(clusters, 1):
-        if len(pts) < 3:
+        if len(pts) < 4:
             continue
         pc = o3d.geometry.PointCloud()
         pc.points = o3d.utility.Vector3dVector(pts)
         obb = pc.get_oriented_bounding_box()
+        if obb is None:
+            # Skip cluster
+            continue
         ann = {
             "obj_id": str(i),
             "obj_type": obj_type,
