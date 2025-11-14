@@ -3,7 +3,7 @@
 2) Custom Data Parsing from ROSbags and Data Annotation pipeline in `Semantic Kitty` format for converting an rosbag into annotated data for `Motion Object Segmentation Algoritms` using `YOLOv8 + SAM2`.
 3) Hardware setup for custom data collection
 4) Docker devcontainer and RVIZ2 setup for visualization
-5) Image based multi object tracking using `YOLOv11 + SAM2 + SAHI + NMS` for detecting and tracking people walking at a distance in equirectangular images using `ByteTrack` for automated annotation pipeline for pointclouds with `RANSAC` for ground plane removal and outliers removal and `PCA` for orientation of 3D bounding box. 
+5) Image based multi object tracking using `YOLOv8 + SAM2 + SAHI + NMS` for detecting and tracking people walking at a distance in equirectangular images using `ByteTrack` for automated annotation pipeline for pointclouds with `RANSAC` for ground plane removal and outliers removal and `PCA` for orientation of 3D bounding box. 
 
 ![alt text](./assets/Screenshot%20from%202025-11-06%2012-06-17.png)
 
@@ -323,7 +323,7 @@ Login Succeeded
 
 ![!alt text](./assets/Screenshot%20from%202025-09-12%2017-40-00.png)
 
-## Image based multi object tracking (work in progress)
+## Image based multi object tracking 
 - The idea here is to use `yolov8/yolo11 + SAM2 + groundingDINO` to track people present at a distance to make the annotation pipeline more robust for equirectangular images.
 - ensure that the weight folder has all the model checkpoints which can be setup using `weights/setup.sh`.
 - New code with `ByteTrack` with `SAHI+NMS` integration for better tracking has been added
@@ -423,6 +423,30 @@ Modes:
   - reverse:  moving_people → people.moving,   people_static → people.static
 ```
 ![alt text](./assets/000058.png)
+
+## 2D to 3D bounding box backprojection using multiple camera
+- setup uses 5 intel realsense camera to obtain images where `SAM2` mask are made and are backprojected using the cameras intrinsics and extrinsics
+```bash
+# to visualize data from 5 or more realsense camera on rerun use
+bash rosbag_processing_script/run_multicam_viz
+```
+![alt text](./assets/Screenshot%20from%202025-11-14%2012-22-00.png)
+
+```bash 
+# to extract the data from 5 realsense camera and to syncronizse them with the lidar use
+python3 cam5_extraction.py
+
+# to generate the polygon text labels use
+bash run_advanced_annotater.sh
+
+# to generate the backprojected coloured pcd which segments humans in red colour and rest in green use
+bash run_multicam_backprojection.sh
+
+# to generate the json labels for SUSTechpoints use
+bash run_multicam_annotater.sh
+```
+
+![alt text](./assets/Screenshot%20from%202025-11-14%2011-55-05.png)
 
 ## Acknowledgment
 - I have used [temporal-point-transformer](https://github.com/LiDAR-Motion-Segmentation/temporal-point-transformer) model to train and evaluate on.
