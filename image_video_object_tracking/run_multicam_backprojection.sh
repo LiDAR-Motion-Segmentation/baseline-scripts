@@ -28,6 +28,6 @@ python3 sam_backproject_multicam.py \
     --camera camera3 "$CAM3_IMAGE_DIR" "$CAM3_INTRINSICS_DIR" "$CAM3_EXTRISICS_DIR" \
     --camera camera4 "$CAM4_IMAGE_DIR" "$CAM4_INTRINSICS_DIR" "$CAM4_EXTRISICS_DIR" \
     --camera camera5 "$CAM5_IMAGE_DIR" "$CAM5_INTRINSICS_DIR" "$CAM5_EXTRISICS_DIR" \
-    --pcd_dir "PCD_DIR" \
-    --output_dir multicam_output \
+    --pcd_dir "$PCD_DIR" \
+    --output_dir multicam_output_v2 \
     --labels camera1:"$CAM1_LABEL" camera2:"$CAM2_LABEL" camera3:"$CAM3_LABEL" camera4:"$CAM4_LABEL" camera5:"$CAM5_LABEL"
