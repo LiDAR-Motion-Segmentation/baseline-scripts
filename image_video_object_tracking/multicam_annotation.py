@@ -31,6 +31,21 @@ class CameraConfig:
         return T
 
 
+def parse_cameras(cam_args: List[List[str]]) -> List[CameraConfig]:
+    cams = []
+    for entry in cam_args:
+        if len(entry) != 5:
+            raise ValueError(
+                "Each --camera must provide: name img_dir intr extr label_dir"
+            )
+        cams.append(
+            CameraConfig(
+                entry[0], Path(entry[1]), Path(entry[2]), Path(entry[3]), Path(entry[4])
+            )
+        )
+    return cams
+
+
 def build_mask_from_label(label_file: Path, shape: tuple) -> np.ndarray:
     h, w = shape
     mask = np.zeros((h, w), np.uint8)
@@ -127,3 +142,62 @@ def save_3d_annotations_json(
         annotations.append(ann)
     with open(out_json, "w") as f:
         json.dump(annotations, f, indent=2)
+
+
+def process_frame(
+    pcd_file: Path,
+    cameras: List[CameraConfig],
+    out_ann_dir: Path,
+    obj_type: str = "moving_people",
+) -> None:
+    pc = o3d.io.read_point_cloud(str(pcd_file))
+    xyz = np.asarray(pc.points)
+    mask_indices = set()
+    frame_name = pcd_file.stem
+    for cam in cameras:
+        img_file = cam.img_dir / f"{frame_name}.png"
+        lbl_file = cam.lbl_dir / f"{frame_name}.txt"
+        if not img_file.exists() or not lbl_file.exists():
+            continue
+        img = cv2.imread(str(img_file))
+        if img is None:
+            continue
+        mask = build_mask_from_label(lbl_file, img.shape[:2])
+        uv, valid = project_lidar_to_image(xyz, cam.extr, cam.intr)
+        cam_indices = mask_point_indices(xyz, uv, valid, mask)
+        mask_indices.update(cam_indices.tolist())
+    mask_points = xyz[list(mask_indices)] if mask_indices else np.empty((0, 3))
+    cluster = get_clusters_masked_points(mask_points)
+    out_json = out_ann_dir / f"{frame_name}.json"
+    save_3d_annotations_json(cluster, out_json, obj_type=obj_type)
+    print(f"[ok] Saved {out_json} ({len(cluster)} 3D boxes)")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Multi-camera 3D mask backprojection and 3D box annotation to JSON per frame."
+    )
+    parser.add_argument(
+        "--camera",
+        nargs=5,
+        action="append",
+        required=True,
+        metavar=("NAME", "IMGDIR", "INTR", "EXTR", "LABELDIR"),
+        help="Repeat per camera: NAME IMG_DIR INTRINSICS EXTRINSICS LABEL_DIR",
+    )
+    parser.add_argument("--pcd_dir", type=str, required=True)
+    parser.add_argument("--output_json_dir", type=str, required=True)
+    parser.add_argument(
+        "--obj_type",
+        type=str,
+        default="moving_people",
+        help="Object type string in JSON output",
+    )
+    args = parser.parse_args()
+
+    out_ann_dir = Path(args.output_json_dir)
+    out_ann_dir.mkdir(parents=True, exist_ok=True)
+    cameras: List[CameraConfig] = parse_cameras(args.camera)
+    pcd_files = sorted(Path(args.pcd_dir).glob("*.pcd"))
+    for pcd_file in pcd_files:
+        process_frame(pcd_file, cameras, out_ann_dir, obj_type=args.obj_type)
