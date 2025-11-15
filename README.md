@@ -448,6 +448,24 @@ bash run_multicam_annotater.sh
 
 ![alt text](./assets/Screenshot%20from%202025-11-14%2011-55-05.png)
 
+## Deployment on Jetson Boards
+- first convert the models into `.onnx` file for ONNX and format `.engine` format for tensorrt based acceleration
+```bash
+pip3 install onnxruntime tqdm
+
+python deployement_onnx_tensorrt/export_model.py  --weights weights/yolov8l.pt --model yolo --format onnx
+# This generates weights/yolov8l.onnx
+
+# Export SAM to ONNX (using the Ultralytics-compatible SAM model)
+# If you haven't downloaded it, do: wget https://github.com/ultralytics/assets/releases/download/v0.0.0/sam_l.pt -O weights/sam_l.pt
+python3 deployement_onnx_tensorrt/export_model.py --weights weights/sam_l.pt --model sam --format onnx
+# This generates weights/sam_l_encoder.onnx and weights/sam_l_decoder.onnx
+
+# Export to TensorRT. This requires polygraphy etc.
+python deployement_onnx_tensorrt/export_model.py --weights weights/yolov8l.pt --model yolo --format tensorrt
+python deployement_onnx_tensorrt/export_model.py --weights weights/sam_l.pt --model sam --format tensorrt
+```
+
 ## Acknowledgment
 - I have used [temporal-point-transformer](https://github.com/LiDAR-Motion-Segmentation/temporal-point-transformer) model to train and evaluate on.
 - I would like to thank [Tarun Ramakrishnan](https://github.com/rtarun1) and [Aadith warrier](https://github.com/aadith-warrier) for their support especially with the hardware.
@@ -517,4 +535,32 @@ note = {Software available from wandb.com},
 url={https://www.wandb.com/},
 author = {Biewald, Lukas},
 }
+
+@article{10.1145/3508391,
+author = {Jeong, Eunjin and Kim, Jangryul and Ha, Soonhoi},
+title = {TensorRT-Based Framework and Optimization Methodology for Deep Learning Inference on Jetson Boards},
+year = {2022},
+issue_date = {September 2022},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {21},
+number = {5},
+issn = {1539-9087},
+url = {https://doi.org/10.1145/3508391},
+doi = {10.1145/3508391},
+journal = {ACM Trans. Embed. Comput. Syst.},
+month = oct,
+articleno = {51},
+numpages = {26},
+keywords = {acceleration, framework, optimization, Deep learning}
+}
+
+@misc{onnxruntime,
+  title={ONNX Runtime},
+  author={ONNX Runtime developers},
+  year={2021},
+  howpublished={\url{https://onnxruntime.ai/}},
+  note={Version: x.y.z}
+}
+
 ```
