@@ -12,6 +12,7 @@
 /output_dir
 /log
 /rosbag_processing_script/data_extraction
+/image_video_object_tracking/multicam_output
 Python
 
 pycache/

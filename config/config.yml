@@ -23,17 +23,21 @@ tracking_params:
 
 calibration:
   extrinsics:
-    translation: [0.002065, -0.172389, 0.069317]  # x, y, z in meters
-    rotation: [-0.500030, 0.503525, -0.501838, 0.494558] # quaternion (qx, qy, qz, qw)
+    translation: [0.10336329096238568, -0.019238416589824225, -0.039398644058342445,]  # x, y, z in meters
+    rotation: [-0.4230164581873918,  0.4368759758405062,  -0.5685466143578862, 0.5540317726793159]  # quaternion (qx, qy, qz, qw)
 
   intrinsics:
-    width: 1920
-    height: 960
-    fx: 960.0
-    fy: 960.0
-    cx: 960.0
-    cy: 480.0
-    distortion: [-0.40817, 0.18282, 0.01766, -0.02024]
+    width: 1280
+    height: 720
+    fx: 644.2432250976563
+    fy: 643.4126586914063
+    cx: 646.7513427734375
+    cy: 362.3094177246094
+    distortion: [-0.05508046969771385,
+        0.06599936634302139,
+        0.00017508867313154042,
+        0.0009061222663149238,
+        -0.021213585510849953]
 
 dbscan_params:
   eps: 0.15 # the distance here is in meters
