@@ -136,9 +136,9 @@ def save_3d_annotations_json(
                     "z": float(np.arctan2(obb.R[1, 0], obb.R[0, 0])),
                 },
                 "scale": {
-                    "x": float(obb.extent[0]),
+                    "x": float(obb.extent[0] - 0.59),
                     "y": float(obb.extent[1]),
-                    "z": float(obb.extent[2]),
+                    "z": float(obb.extent[2] + 1.17),
                 },
             },
         }
