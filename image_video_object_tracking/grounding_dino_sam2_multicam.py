@@ -100,3 +100,78 @@ class SAM2Segmentor:
 
         # Return as numpy boolean array (N, H, W)
         return masks.squeeze(1).cpu().numpy()
+
+
+class YOLOWriter:
+    @staticmethod
+    def write_yolo_annotations(
+        boxes: np.ndarray,
+        image_shape: Tuple[int, int],
+        output_path: Path,
+        class_id: int = 0,
+    ) -> None:
+        # Write YOLO format: <class_id> <x_center> <y_center> <width> <height> (normalized)
+        h, w = image_shape
+        with open(output_path, "w") as f:
+            for box in boxes:
+                x1, y1, x2, y2 = box
+                x_center = ((x1 + x2) / 2) / w
+                y_center = ((y1 + y2) / 2) / h
+                width = (x2 - x1) / w
+                height = (y2 - y1) / h
+                f.write(
+                    f"{class_id} {x_center:.6f} {y_center:.6f} {width:.6f} {height:.6f}\n"
+                )
+
+
+class PolygonWriter:
+    @staticmethod
+    def mask_to_polygon(mask: np.ndarray) -> Optional[np.ndarray]:
+        contours, _ = cv2.findContours(
+            mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
+        if not contours:
+            return None
+
+        # get the largest contour
+        largest = max(contours, key=cv2.contourArea)
+        return largest.squeeze()
+
+    @staticmethod
+    def write_polygon_annotations(
+        masks: np.ndarray,
+        image_shape: Tuple[int, int],
+        output_path: Path,
+        class_id: int = 0,
+    ) -> None:
+        # Write polygon format: <class_id> <x1> <y1> <x2> <y2> ... (normalized)
+        h, w = image_shape
+        with open(output_path, "w") as f:
+            for mask in masks:
+                poly = PolygonWriter.mask_to_polygon(mask)
+                if poly is None or len(poly) < 3:
+                    continue
+                # normalize coordinates
+                poly_norm = poly / np.array([w, h])
+                coords_str = " ".join([f"{x:.6f} {y:.6f}" for x, y in poly_norm])
+                f.write(f"{class_id} {coords_str}\n")
+
+
+class MultiCameraDetectionPipeline:
+    def __init__(
+        self,
+        cameras: List[CameraConfig],
+        model_config: ModelConfig,
+        output_dir: Path,
+        text_prompt: str = "person. people.",
+    ):
+        self.cameras = cameras
+        self.output_dir = output_dir
+        self.text_prompt = text_prompt
+
+        print("Loading Grounding DINO...")
+        self.detector = GroundingDINODetector(model_config)
+        print("Loading SAM2...")
+        self.segmentor = SAM2Segmentor(model_config)
+
+        self._setup_output_dirs()
