@@ -1,11 +1,3 @@
-"""
-Usage:
-    python grounding_dino_sam2_multicam.py \
-        --camera_dirs camera1:/path/to/cam1 camera2:/path/to/cam2 ... \
-        --output_dir ./output \
-        --text_prompt "person. people."
-"""
-
 import argparse
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional
@@ -32,10 +24,10 @@ class ModelConfig:
     grounding_dino_config: Path
     grounding_dino_checkpoint: Path
     sam_checkpoint: Path
-    sam_model_type: str = "vit_h"
+    sam_model_type: str = "vit_l"
     box_threshold: float = 0.35
     text_threshold: float = 0.25
-    device: str = "cuda" if torch.cuda.is_available() else "cpu"
+    device: str = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 
 class GroundingDINODetector:
@@ -53,9 +45,24 @@ class GroundingDINODetector:
         # boxes: (N, 4) array in xyxy format
         # scores: (N,) confidence scores
         # labels: List of label strings
+
+        # If image is loaded with cv2: convert from BGR to RGB
+        # if image.shape[2] == 3 and image.dtype == np.uint8:
+        #     # image must be HWC np.uint8 RGB for most DINO forks
+        #     pass
+        # else:
+        #     raise ValueError("Image must be RGB uint8 (H,W,3) for GroundingDINO.")
+
+        if isinstance(image, np.ndarray):
+            # If RGB image shape (H, W, 3), convert to CHW and float32
+            image_tensor = torch.from_numpy(image).float().permute(2, 0, 1) / 255.0
+            image_tensor = image_tensor.unsqueeze(0).to(self.config.device)
+        else:
+            image_tensor = image.to(self.config.device)
+
         boxes, logits, phrases = predict(
             model=self.model,
-            image=image,
+            image=image_tensor,
             caption=text_prompt,
             box_threshold=self.config.box_threshold,
             text_threshold=self.config.text_threshold,
@@ -251,7 +258,7 @@ def parse_camera_args(camera_args: List[str]) -> List[CameraConfig]:
     for arg in camera_args:
         if ":" not in arg:
             raise ValueError(f"Camera arg must be 'name:path', got: {arg}")
-        name, path = arg.split(CameraConfig(name, Path(path)))
+        name, path = name, path = arg.split(":", 1)
         cameras.append(CameraConfig(name, Path(path)))
     return cameras
 
