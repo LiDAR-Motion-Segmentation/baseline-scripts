@@ -178,60 +178,137 @@ class MultiCameraDetectionPipeline:
 
     def _setup_output_dirs(self) -> None:
         for cam in self.cameras:
-            (self.output_dir / cam.name / "yolo_boxes").mkdir(parents=True, exist_ok=True)
-            (self.output_dir / cam.name / "sam_masks").mkdir(parents=True, exist_ok=True)
-            (self.output_dir / cam.name / "visualizations").mkdir(parents=True, exist_ok=True)
-            
+            (self.output_dir / cam.name / "yolo_boxes").mkdir(
+                parents=True, exist_ok=True
+            )
+            (self.output_dir / cam.name / "sam_masks").mkdir(
+                parents=True, exist_ok=True
+            )
+            (self.output_dir / cam.name / "visualizations").mkdir(
+                parents=True, exist_ok=True
+            )
+
     def process_frame(self, image_path: Path, camera_name: str) -> None:
         image = cv2.imread(str(image_path))
         if image is None:
             print(f"Warning: Could not load {image_path}")
             return
-        
+
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         frame_name = image_path.stem
         boxes, scores, labels = self.detector.detect(image_rgb, self.text_prompt)
-        
+
         if len(boxes) == 0:
             print(f"No detections for {camera_name}/{frame_name}")
             return
-        
+
         masks = self.segmentor.segment(image_rgb, boxes)
-        
+
         yolo_path = self.output_dir / camera_name / "yolo_boxes" / f"{frame_name}.txt"
         YOLOWriter.write_yolo_annotations(boxes, image.shape[:2], yolo_path)
-        
+
         mask_path = self.output_dir / camera_name / "sam_masks" / f"{frame_name}.txt"
         PolygonWriter.write_polygon_annotations(masks, image.shape[:2], mask_path)
-        
+
         self._visualize_detections(image, boxes, masks, camera_name, frame_name)
         print(f"[{camera_name}] Processed {frame_name}: {len(boxes)} detections")
-        
+
     def _visualize_detections(
         self,
         image: np.ndarray,
         boxes: np.ndarray,
         masks: np.ndarray,
         camera_name: str,
-        frame_name: str
+        frame_name: str,
     ) -> None:
-        
+
         vis = image.copy()
         for mask in masks:
             color = np.random.randint(0, 255, 3).tolist()
             vis[mask > 0] = vis[mask > 0] * 0.6 + np.array(color) * 0.4
-            
+
         for box in boxes:
             x1, y1, x2, y2 = box.astype(int)
             cv2.rectangle(vis, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            
-        vis_path = self.output_dir / camera_name / "visualizations" / f"{frame_name}.jpg"
+
+        vis_path = (
+            self.output_dir / camera_name / "visualizations" / f"{frame_name}.jpg"
+        )
         cv2.imwrite(str(vis_path), vis)
-        
+
     def run(self) -> None:
         for cam in self.cameras:
             print(f"\nProcessing camera: {cam.name}")
-            image_files = sorted(cam.image_dir.glob("*.png")) + sorted(cam.image_dir.glob("*.jpg"))
+            image_files = sorted(cam.image_dir.glob("*.png")) + sorted(
+                cam.image_dir.glob("*.jpg")
+            )
             for img_path in image_files:
                 self.process_frame(img_path, cam.name)
-                
+
+
+def parse_camera_args(camera_args: List[str]) -> List[CameraConfig]:
+    cameras = []
+    for arg in camera_args:
+        if ":" not in arg:
+            raise ValueError(f"Camera arg must be 'name:path', got: {arg}")
+        name, path = arg.split(CameraConfig(name, Path(path)))
+        cameras.append(CameraConfig(name, Path(path)))
+    return cameras
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Multi-Camera Grounding DINO + SAM2 Pipeline"
+    )
+    parser.add_argument(
+        "--camera_dirs",
+        nargs="+",
+        required=True,
+        help="Camera directories as name:path (e.g., cam1:/data/cam1)",
+    )
+    parser.add_argument(
+        "--output_dir", type=str, required=True, help="Output directory for results"
+    )
+    parser.add_argument(
+        "--grounding_dino_config",
+        type=str,
+        required=True,
+        help="Path to Grounding DINO config file",
+    )
+    parser.add_argument(
+        "--grounding_dino_checkpoint",
+        type=str,
+        required=True,
+        help="Path to Grounding DINO checkpoint",
+    )
+    parser.add_argument(
+        "--sam_checkpoint", type=str, required=True, help="Path to SAM2 checkpoint"
+    )
+    parser.add_argument(
+        "--text_prompt",
+        type=str,
+        default="person. people.",
+        help="Text prompt for Grounding DINO",
+    )
+
+    args = parser.parse_args()
+    cameras = parse_camera_args(args.camera_dirs)
+
+    model_config = ModelConfig(
+        grounding_dino_config=Path(args.grounding_dino_config),
+        grounding_dino_checkpoint=Path(args.grounding_dino_checkpoint),
+        sam_checkpoint=Path(args.sam_checkpoint),
+    )
+
+    pipeline = MultiCameraDetectionPipeline(
+        cameras=cameras,
+        model_config=model_config,
+        output_dir=Path(args.output_dir),
+        text_prompt=args.text_prompt,
+    )
+
+    pipeline.run()
+
+
+if __name__ == "__main__":
+    main()
