@@ -175,3 +175,63 @@ class MultiCameraDetectionPipeline:
         self.segmentor = SAM2Segmentor(model_config)
 
         self._setup_output_dirs()
+
+    def _setup_output_dirs(self) -> None:
+        for cam in self.cameras:
+            (self.output_dir / cam.name / "yolo_boxes").mkdir(parents=True, exist_ok=True)
+            (self.output_dir / cam.name / "sam_masks").mkdir(parents=True, exist_ok=True)
+            (self.output_dir / cam.name / "visualizations").mkdir(parents=True, exist_ok=True)
+            
+    def process_frame(self, image_path: Path, camera_name: str) -> None:
+        image = cv2.imread(str(image_path))
+        if image is None:
+            print(f"Warning: Could not load {image_path}")
+            return
+        
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        frame_name = image_path.stem
+        boxes, scores, labels = self.detector.detect(image_rgb, self.text_prompt)
+        
+        if len(boxes) == 0:
+            print(f"No detections for {camera_name}/{frame_name}")
+            return
+        
+        masks = self.segmentor.segment(image_rgb, boxes)
+        
+        yolo_path = self.output_dir / camera_name / "yolo_boxes" / f"{frame_name}.txt"
+        YOLOWriter.write_yolo_annotations(boxes, image.shape[:2], yolo_path)
+        
+        mask_path = self.output_dir / camera_name / "sam_masks" / f"{frame_name}.txt"
+        PolygonWriter.write_polygon_annotations(masks, image.shape[:2], mask_path)
+        
+        self._visualize_detections(image, boxes, masks, camera_name, frame_name)
+        print(f"[{camera_name}] Processed {frame_name}: {len(boxes)} detections")
+        
+    def _visualize_detections(
+        self,
+        image: np.ndarray,
+        boxes: np.ndarray,
+        masks: np.ndarray,
+        camera_name: str,
+        frame_name: str
+    ) -> None:
+        
+        vis = image.copy()
+        for mask in masks:
+            color = np.random.randint(0, 255, 3).tolist()
+            vis[mask > 0] = vis[mask > 0] * 0.6 + np.array(color) * 0.4
+            
+        for box in boxes:
+            x1, y1, x2, y2 = box.astype(int)
+            cv2.rectangle(vis, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            
+        vis_path = self.output_dir / camera_name / "visualizations" / f"{frame_name}.jpg"
+        cv2.imwrite(str(vis_path), vis)
+        
+    def run(self) -> None:
+        for cam in self.cameras:
+            print(f"\nProcessing camera: {cam.name}")
+            image_files = sorted(cam.image_dir.glob("*.png")) + sorted(cam.image_dir.glob("*.jpg"))
+            for img_path in image_files:
+                self.process_frame(img_path, cam.name)
+                
