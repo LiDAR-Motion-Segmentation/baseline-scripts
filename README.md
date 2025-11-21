@@ -450,6 +450,7 @@ bash run_multicam_annotater.sh
 
 ## Deployment on Jetson Boards
 - first convert the models into `.onnx` file for ONNX and format `.engine` format for tensorrt based acceleration
+- run the `jetson annotater` for faster inferencing and realtime deployment on `NVIDIA Jetson Orin NX (16GB)`
 ```bash
 pip3 install onnxruntime tqdm
 
@@ -464,6 +465,9 @@ python3 deployement_onnx_tensorrt/export_model.py --weights weights/sam_l.pt --m
 # Export to TensorRT. This requires polygraphy etc.
 python deployement_onnx_tensorrt/export_model.py --weights weights/yolov8l.pt --model yolo --format tensorrt
 python deployement_onnx_tensorrt/export_model.py --weights weights/sam_l.pt --model sam --format tensorrt
+
+# running using yolo onnx version and sam2 encoder and decoder version for faster inferencing speed
+python deployement_onnx_tensorrt/jetson_annotator.py --pcd_dir /path/to/your/pcd_files --image_dir /path/to/your/image_files --output_dir /path/to/your/output_directory --config config.yml --offset 3
 ```
 
 ## Acknowledgment
