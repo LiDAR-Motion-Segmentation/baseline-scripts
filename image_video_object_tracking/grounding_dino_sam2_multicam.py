@@ -7,6 +7,9 @@ import cv2
 import torch
 from groundingdino.util.inference import load_model, predict
 from segment_anything_hq import sam_model_registry, SamPredictor
+import groundingdino.datasets.transforms as T
+from groundingdino.util.box_ops import box_cxcywh_to_xyxy
+from PIL import Image
 
 
 @dataclass
@@ -39,6 +42,18 @@ class GroundingDINODetector:
             device=config.device,
         )
 
+    def preprocess_image(self, image_cv2: np.ndarray) -> torch.Tensor:
+        image_pil = Image.fromarray(cv2.cvtColor(image_cv2, cv2.COLOR_BGR2RGB))
+        transform = T.Compose(
+            [
+                T.RandomResize([800], max_size=1333),
+                T.ToTensor(),
+                T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+            ]
+        )
+        image_tensor, _ = transform(image_pil, None)
+        return image_tensor
+
     def detect(
         self, image: np.ndarray, text_prompt: str
     ) -> Tuple[np.ndarray, np.ndarray, List[str]]:
@@ -53,14 +68,16 @@ class GroundingDINODetector:
         # else:
         #     raise ValueError("Image must be RGB uint8 (H,W,3) for GroundingDINO.")
 
-        if isinstance(image, np.ndarray):
-            # If RGB image shape (H, W, 3), convert to CHW and float32
-            image_tensor = torch.from_numpy(image).float().permute(2, 0, 1) / 255.0
-            image_tensor = image_tensor.unsqueeze(0).to(self.config.device)
-        else:
-            image_tensor = image.to(self.config.device)
+        # if isinstance(image, np.ndarray):
+        #     # If RGB image shape (H, W, 3), convert to CHW and float32
+        #     image_tensor = torch.from_numpy(image).float().permute(2, 0, 1) / 255.0
+        #     image_tensor = image_tensor.unsqueeze(0).to(self.config.device)
+        # else:
+        #     image_tensor = image.to(self.config.device)
+        image_tensor = self.preprocess_image(image)  # Returns (3, H, W)
+        image_tensor = image_tensor.to(self.config.device)
 
-        boxes, logits, phrases = predict(
+        boxes_norm, logits, phrases = predict(
             model=self.model,
             image=image_tensor,
             caption=text_prompt,
@@ -69,9 +86,13 @@ class GroundingDINODetector:
             device=self.config.device,
         )
         # Convert from normalized [0,1] to pixel coords if needed
+        boxes_norm_xyxy = box_cxcywh_to_xyxy(boxes_norm)
         h, w = image.shape[:2]
-        boxes = boxes * torch.tensor([w, h, w, h], device=boxes.device)
-        return boxes.cpu().numpy(), logits.cpu().numpy(), phrases
+        scale_tensor = boxes_norm_xyxy * torch.tensor(
+            [w, h, w, h], device=boxes_norm_xyxy.device
+        )
+        boxes_pixels = boxes_norm_xyxy * scale_tensor
+        return boxes_pixels.cpu().numpy(), logits.cpu().numpy(), phrases
 
 
 class SAM2Segmentor:
