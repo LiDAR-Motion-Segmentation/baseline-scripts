@@ -1,103 +1,13 @@
-# baseline-scripts for temporal-point-transformer
-1) Extra utility codes for adapting `Motion Object Segmentation Algoritms` for JRDB dataset and semantic kitty dataset. 
-2) Custom Data Parsing from ROSbags and Data Annotation pipeline in `Semantic Kitty` format for converting an rosbag into annotated data for `Motion Object Segmentation Algoritms` using `YOLOv8 + SAM2`.
+# Auto annotation pipeline for wheelchair project
+1) Custom Data Parsing from ROSbags and Data Annotation pipeline in `Semantic Kitty` format for converting an rosbag into annotated data for `Motion Object Segmentation Algoritms` using `YOLOv8 + SAM2`.
 3) Hardware setup for custom data collection
 4) Docker devcontainer and RVIZ2 setup for visualization
-5) Image based multi object tracking using `YOLOv8 + SAM2 + SAHI + NMS` for detecting and tracking people walking at a distance in equirectangular images using `ByteTrack` for automated annotation pipeline for pointclouds with `RANSAC` for ground plane removal and outliers removal and `PCA` for orientation of 3D bounding box. 
+5) Image based multi object tracking using `YOLOv8 + SAM2 + SAHI + NMS` for detecting and tracking people walking at a distance in equirectangular images using `ByteTrack` for automated annotation pipeline for pointclouds with `RANSAC` for ground plane removal and outliers removal and `PCA` for orientation of 3D bounding box.
+6) Backprojection of `SAM masks` from 2D image to 3D pointcloud space using 5 intel realsense cameras 
+7) Deployment on `NVIDIA Jetson Orin NX` using `ONNX` and `TensorRT` for faster inferencing and realtime operation.
+8) Extra utility codes for adapting `Motion Object Segmentation Algoritms` for JRDB dataset and semantic kitty dataset for testing pointcloud based tracking algorithms for moving and non-moving objects segmentation
 
 ![alt text](./assets/Screenshot%20from%202025-11-06%2012-06-17.png)
-
-## semantic kitty scripts
-- the files are placed in `training_script_semantic_kitty` directory
-
-- semantic kitty dataset structure, Download it from here [SemanticKITTI](http://www.semantic-kitti.org/dataset.html#download) (including **Velodyne point clouds**, **calibration data** and **label data**).
-- instructions for JRDB will be added soon and scripts are in `training_script_JRDB` directory
-```
-DATAROOT
-└── sequences
-    ├── 00
-    │   ├── poses.txt
-    │   ├── calib.txt
-    │   ├── times.txt
-    │   ├── labels
-    │   └── velodyne
-    |── 01-10
-
-# sequences for training: 00-10
-# sequences for validation: 08
-# sequences for testing: 08
-```
-
-- activate the evironment (the environment file is environment.yml)
-```
-conda env create -f environment.yml
-conda activate lidar_moseg
-pip install e .
-```
-- to run and test the train dataloader and test dataloader script (move this script to the dataloader directory in codebase which ever is used)
-```
-python3 dataloaders/semantic_kitty.py
-```
-- to run the training script use (-m to be used when running in a module otherwise it not reqired also put this code in scripts directory)
-```
-tmux new -s training
-tmux a -t training
-python3 -m scripts.train_semantic_kitty.py 
-```
-- to use the first GPU on your system incase  it is not detected use this
-```
-export CUDA_VISIBLE_DEVICES=0
-```
-- To run the evaluation script for semantic kitty use
-```
-python3 -m scripts.eval_semantic_kitty --config_path <path>/config/semantic_kitty_config.yaml --checkpoint_path <path>/best-checkpoint-epoch=07-val_loss=0.00-v1.ckpt
-```
-
-- the utilities for point cloud  processing is present in `pointcloud_utils.py` and the config used for training along with the split is present in config folder in `semantic_kitty_config.yaml`
-
-## Results
-- by default, wandb logging is turned on, so if you wish to use your wandb account, please make a .env file, with your wandb api key as follows
-```
-WANDB_API_KEY=<YOUR-API-KEY>
-```
-- also change the `semantic-kitty-config.yaml` to add the details
-```
-logging:
-  wandb:
-    run_root_dir: "/scratch/<username>/temporal-point-transformer"
-    project: "add your project here"
-    entity: "add your entity here"
-    log_model: False
-    save_code: False
-    group: "temporal-point"
-    name: "patch64-semantic-kitty"
-    resume: "never"
-    log_dir: "/scratch/<username>/temporal-point-transformer/logs"
-```
-- Blue line is on JRDB dataset and red line is on Semantic kitty dataset
-![alt text](./assets/image.png)
-
-- In Scripts folder `eval_semantic_kitty.py` should print the output below in this way for sequence 8
-```
-==================================================
-🧪 Test Metrics Summary
-==================================================
-🔸 Loss      : 0.0536
-🔸 IoU       : 0.7081
-🔸 Precision : 0.8105
-🔸 Recall    : 0.7468
-🔸 F1 Score  : 0.7655
-==================================================
-```
-
-## Visualization
-- use rerun to visualize the result.
-```
-rerun --serve & disown
-python3 -m scripts.visualize_semantic_kitty --config_path <path>/config/semantic_kitty_config.yaml --checkpoint_path <path>/best-checkpoint-epoch=07-val_loss=0.00-v1.ckpt
-```
-- left side is the predictions and right side is the ground truth
-![alt text](./assets/image-1.png)
 
 ## ROSbag processing for custom Dataset
 
@@ -469,6 +379,99 @@ python deployement_onnx_tensorrt/export_model.py --weights weights/sam_l.pt --mo
 # running using yolo onnx version and sam2 encoder and decoder version for faster inferencing speed
 python deployement_onnx_tensorrt/jetson_annotator.py --pcd_dir /path/to/your/pcd_files --image_dir /path/to/your/image_files --output_dir /path/to/your/output_directory --config config.yml --offset 3
 ```
+
+## semantic kitty scripts
+- the files are placed in `training_script_semantic_kitty` directory
+
+- semantic kitty dataset structure, Download it from here [SemanticKITTI](http://www.semantic-kitti.org/dataset.html#download) (including **Velodyne point clouds**, **calibration data** and **label data**).
+- instructions for JRDB will be added soon and scripts are in `training_script_JRDB` directory
+```
+DATAROOT
+└── sequences
+    ├── 00
+    │   ├── poses.txt
+    │   ├── calib.txt
+    │   ├── times.txt
+    │   ├── labels
+    │   └── velodyne
+    |── 01-10
+
+# sequences for training: 00-10
+# sequences for validation: 08
+# sequences for testing: 08
+```
+
+- activate the evironment (the environment file is environment.yml)
+```
+conda env create -f environment.yml
+conda activate lidar_moseg
+pip install e .
+```
+- to run and test the train dataloader and test dataloader script (move this script to the dataloader directory in codebase which ever is used)
+```
+python3 dataloaders/semantic_kitty.py
+```
+- to run the training script use (-m to be used when running in a module otherwise it not reqired also put this code in scripts directory)
+```
+tmux new -s training
+tmux a -t training
+python3 -m scripts.train_semantic_kitty.py 
+```
+- to use the first GPU on your system incase  it is not detected use this
+```
+export CUDA_VISIBLE_DEVICES=0
+```
+- To run the evaluation script for semantic kitty use
+```
+python3 -m scripts.eval_semantic_kitty --config_path <path>/config/semantic_kitty_config.yaml --checkpoint_path <path>/best-checkpoint-epoch=07-val_loss=0.00-v1.ckpt
+```
+
+- the utilities for point cloud  processing is present in `pointcloud_utils.py` and the config used for training along with the split is present in config folder in `semantic_kitty_config.yaml`
+
+## Results
+- by default, wandb logging is turned on, so if you wish to use your wandb account, please make a .env file, with your wandb api key as follows
+```
+WANDB_API_KEY=<YOUR-API-KEY>
+```
+- also change the `semantic-kitty-config.yaml` to add the details
+```
+logging:
+  wandb:
+    run_root_dir: "/scratch/<username>/temporal-point-transformer"
+    project: "add your project here"
+    entity: "add your entity here"
+    log_model: False
+    save_code: False
+    group: "temporal-point"
+    name: "patch64-semantic-kitty"
+    resume: "never"
+    log_dir: "/scratch/<username>/temporal-point-transformer/logs"
+```
+- Blue line is on JRDB dataset and red line is on Semantic kitty dataset
+![alt text](./assets/image.png)
+
+- In Scripts folder `eval_semantic_kitty.py` should print the output below in this way for sequence 8
+```
+==================================================
+🧪 Test Metrics Summary
+==================================================
+🔸 Loss      : 0.0536
+🔸 IoU       : 0.7081
+🔸 Precision : 0.8105
+🔸 Recall    : 0.7468
+🔸 F1 Score  : 0.7655
+==================================================
+```
+
+## Visualization
+- use rerun to visualize the result.
+```
+rerun --serve & disown
+python3 -m scripts.visualize_semantic_kitty --config_path <path>/config/semantic_kitty_config.yaml --checkpoint_path <path>/best-checkpoint-epoch=07-val_loss=0.00-v1.ckpt
+```
+- left side is the predictions and right side is the ground truth
+![alt text](./assets/image-1.png)
+
 
 ## Acknowledgment
 - I have used [temporal-point-transformer](https://github.com/LiDAR-Motion-Segmentation/temporal-point-transformer) model to train and evaluate on.
