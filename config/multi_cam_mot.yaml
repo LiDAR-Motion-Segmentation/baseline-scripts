@@ -1,0 +1,55 @@
+default:
+  - _self_
+
+system:
+  device: "cuda:0"
+  num_workers: 5
+  output_dir: "./MCMPT_output"
+  verbose: false
+
+models:
+  detection:
+    path: "yolov8l.pt" # yolo path
+
+    # CONFIDENCE THRESHOLD (Crucial for ByteTrack)
+    # We keep this LOW (0.25) to allow ByteTrack to track occluded people.
+    conf_threshold: 0.25
+    classes: [0]
+
+  pose:
+    type: "human"
+
+  segmentation:
+    path: "sam2_b.pt" # sam2 path
+    run_every_n_frames: 1
+
+  reid:
+    name: "osnet_x1_0"
+    match_threshold: 0.75 # # 0.75 = Strict (Less false positives, but might lose ID if person turns 180 deg)
+
+tracker:
+  type: "bytetrack.yaml"
+
+  # for the mall data
+  track_high_thresh: 0.5  # High confidence threshold
+  track_low_thresh: 0.1   # Low confidence threshold (picks up occluded people)
+  new_track_thresh: 0.6   # Confidence required to start a NEW track ID
+  track_buffer: 60        # Retain lost tracks for 60 frames (2 seconds) to handle pillars/obstructions
+  match_thresh: 0.8       # IoU threshold for matching boxes
+
+analysis:
+  movement:
+    history_len: 5
+    threshold: 0.02 # 0.02 means the ankles must move 2% of the body height to be considered "Moving"
+
+cameras:
+  - id: 1
+    path: "./data/cam_01"
+  - id: 2
+    path: "./data/cam_02"
+  - id: 3
+    path: "./data/cam_03"
+  - id: 4
+    path: "./data/cam_04"
+  - id: 5
+    path: "./data/cam_05"
