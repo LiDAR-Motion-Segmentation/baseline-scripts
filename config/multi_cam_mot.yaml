@@ -28,7 +28,9 @@ models:
     match_threshold: 0.75 # # 0.75 = Strict (Less false positives, but might lose ID if person turns 180 deg)
 
 tracker:
-  type: "bytetrack.yaml"
+  type: "botsort.yaml"
+  gmc_method: "sparseOptFlow"
+  with_reid: True
 
   # for the mall data
   track_high_thresh: 0.5  # High confidence threshold
