@@ -23,7 +23,6 @@ try:
     from ultralytics import YOLO, SAM
 except ImportError as e:
     print(f"CRITICAL MISSING LIB: {e}")
-    print("Run: pip install torchreid ultralytics && mim install mmpose")
     sys.exit(1)
 
 warnings.filterwarnings("ignore")
@@ -178,14 +177,16 @@ class AIModelEngine:
         if not bboxes:
             return []
 
+        # Using the inferencer as a generator
         result_generator = self.pose_inferencer(frame, bboxes=bboxes, return_vis=False)
-
         results = next(result_generator)
 
         batch_keypoints = []
-        for pred in results["predictions"]:
+        frame_predictions = results["predictions"][0]
+
+        for instance in frame_predictions:
             # pred['keypoints'] is typically a list of [x, y]
-            kpts = [(float(kp[0]), float(kp[1])) for kp in pred["keypoints"]]
+            kpts = [(float(kp[0]), float(kp[1])) for kp in instance["keypoints"]]
             batch_keypoints.append(kpts)
 
         return batch_keypoints
@@ -218,7 +219,7 @@ def process_camera_stream(
 ):
     cam_id = cam_config.id
     source_path = Path(cam_config.path)
-    output_dir = Path(system_config.output_dir) / f"cam_{cam_id}"
+    output_dir = Path(system_config.system.output_dir) / f"cam_{cam_id}"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     logger.info(f"[Cam {cam_id}] Reading from {source_path}")
