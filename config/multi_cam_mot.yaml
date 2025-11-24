@@ -1,4 +1,4 @@
-default:
+defaults:
   - _self_
 
 system:
@@ -9,7 +9,7 @@ system:
 
 models:
   detection:
-    path: "yolov8l.pt" # yolo path
+    path: "/scratch/soumo_roy/baseline-scripts/weights/yolo11l.pt" # yolo path
 
     # CONFIDENCE THRESHOLD (Crucial for ByteTrack)
     # We keep this LOW (0.25) to allow ByteTrack to track occluded people.
@@ -20,7 +20,7 @@ models:
     type: "human"
 
   segmentation:
-    path: "sam2_b.pt" # sam2 path
+    path: "/scratch/soumo_roy/baseline-scripts/weights/sam2.1_l.pt" # sam2 path
     run_every_n_frames: 1
 
   reid:
@@ -41,17 +41,17 @@ tracker:
 
 analysis:
   movement:
-    history_len: 5
-    threshold: 0.02 # 0.02 means the ankles must move 2% of the body height to be considered "Moving"
+    history_len: 10
+    threshold: 0.005 # 0.02 means the ankles must move 2% of the body height to be considered "Moving"
 
 cameras:
   - id: 1
-    path: "./data/cam_01"
+    path: "/scratch/soumo_roy/baseline-scripts/rosbag_processing_script/data_extraction/camera1"
   - id: 2
-    path: "./data/cam_02"
+    path: "/scratch/soumo_roy/baseline-scripts/rosbag_processing_script/data_extraction/camera2"
   - id: 3
-    path: "./data/cam_03"
+    path: "/scratch/soumo_roy/baseline-scripts/rosbag_processing_script/data_extraction/camera3"
   - id: 4
-    path: "./data/cam_04"
+    path: "/scratch/soumo_roy/baseline-scripts/rosbag_processing_script/data_extraction/camera4"
   - id: 5
-    path: "./data/cam_05"
+    path: "/scratch/soumo_roy/baseline-scripts/rosbag_processing_script/data_extraction/camera5"
