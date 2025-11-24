@@ -16,11 +16,13 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 import multiprocessing
+from tqdm import tqdm
 
 try:
     from mmpose.apis import MMPoseInferencer
     import torchreid
     from ultralytics import YOLO, SAM
+    import mmcv
 except ImportError as e:
     print(f"CRITICAL MISSING LIB: {e}")
     sys.exit(1)
@@ -49,7 +51,9 @@ class PersonEntity:
 class MovementAnalyst:
     def __init__(self, history_len: int, movement_threshold: float):
         # Stores history: {track_id: deque([(left_ankle, right_ankle, box_height), ...])}
+        # Stores normalized leg metrics
         self.history = defaultdict(lambda: deque(maxlen=history_len))
+
         self.threshold = movement_threshold
 
     def update(
@@ -59,33 +63,52 @@ class MovementAnalyst:
         if len(keypoints) < 17:
             return "Unknown"
 
+        l_hip = keypoints[11]
+        r_hip = keypoints[12]
         l_ankle = keypoints[15]
         r_ankle = keypoints[16]
+
+        # LOGIC: Calculate vertical distance from Hip to Ankle
+        # If this distance changes rapidly, the legs are swinging (Walking).
+        # If this distance is constant, the legs are planted (Static),
+        # even if the person moves across the screen due to robot motion.
 
         # Calculate Box Height for Normalization (Scale Invariance)
         box_h = bbox[3] - bbox[1]
         if box_h <= 0:
             return "Unknown"
 
-        # add to history
-        self.history[track_id].append((l_ankle, r_ankle, box_h))
+        # # add to history
+        # self.history[track_id].append((l_ankle, r_ankle, box_h))
 
-        if len(self.history[track_id]) < 2:
-            return "Analysing"
+        # if len(self.history[track_id]) < 2:
+        #     return "Analysing"
 
-        # calculating displacement
-        prev_l, prev_r, prev_h = self.history[track_id][0]  # oldest
-        curr_l, curr_r, curr_h = self.history[track_id][-1]  # newest
+        # # calculating displacement
+        # prev_l, prev_r, prev_h = self.history[track_id][0]  # oldest
+        # curr_l, curr_r, curr_h = self.history[track_id][-1]  # newest
 
-        # Euclidean distance
-        dist_l = math.sqrt((curr_l[0] - prev_l[0]) ** 2 + (curr_l[1] - prev_l[1]) ** 2)
-        dist_r = math.sqrt((curr_r[0] - prev_r[0]) ** 2 + (curr_r[1] - prev_r[1]) ** 2)
-        avg_dist = (dist_l + dist_r) / 2.0
+        # # Euclidean distance
+        # dist_l = math.sqrt((curr_l[0] - prev_l[0]) ** 2 + (curr_l[1] - prev_l[1]) ** 2)
+        # dist_r = math.sqrt((curr_r[0] - prev_r[0]) ** 2 + (curr_r[1] - prev_r[1]) ** 2)
+        # avg_dist = (dist_l + dist_r) / 2.0
 
-        # normalize: movement as a percentage of body height
-        normalized_movement = avg_dist / box_h
+        # # normalize: movement as a percentage of body height
+        # normalized_movement = avg_dist / box_h
 
-        if normalized_movement > self.threshold:
+        hip_center_y = (l_hip[1] + r_hip[1]) / 2.0
+        ankle_center_y = (l_ankle[1] + r_ankle[1]) / 2.0
+
+        # Normalized leg length estimate
+        leg_len_norm = abs(ankle_center_y - hip_center_y) / box_h
+        self.history[track_id].append(leg_len_norm)
+
+        if len(self.history[track_id]) < self.history[track_id].maxlen:
+            return "Analyzing"
+
+        variance = np.std(list(self.history[track_id]))
+
+        if variance > self.threshold:
             return "Moving"
         else:
             return "Static"
@@ -182,7 +205,7 @@ class AIModelEngine:
         results = next(result_generator)
 
         batch_keypoints = []
-        frame_predictions = results["predictions"][0]
+        frame_predictions = results["predictions"][0]  # unwrap frame
 
         for instance in frame_predictions:
             # pred['keypoints'] is typically a list of [x, y]
@@ -216,13 +239,29 @@ def process_camera_stream(
     system_config: DictConfig,
     engine: AIModelEngine,
     global_registry: GlobalIdentityRegistery,
+    tqdm_position: int,
 ):
     cam_id = cam_config.id
     source_path = Path(cam_config.path)
-    output_dir = Path(system_config.system.output_dir) / f"cam_{cam_id}"
-    output_dir.mkdir(parents=True, exist_ok=True)
+    base_out = Path(system_config.system.output_dir) / f"cam_{cam_id}"
+    img_out = base_out / "images"
+    json_out = base_out / "json"
+    img_out.mkdir(parents=True, exist_ok=True)
+    json_out.mkdir(parents=True, exist_ok=True)
 
     logger.info(f"[Cam {cam_id}] Reading from {source_path}")
+
+    start_frame_idx = 0
+    existing_jsons = sorted(list(json_out.glob("*.json")))
+    if existing_jsons:
+        try:
+            last_file = existing_jsons[-1]
+            last_idx = int(last_file.stem.split("_")[1])
+            start_frame_idx = last_idx + 1
+            if tqdm_position == 0:
+                print(f"Resuming Cam {cam_id} from frame {start_frame_idx}")
+        except:
+            pass
 
     # Initialize Movement Analyst from Config
     movement_analyst = MovementAnalyst(
@@ -239,9 +278,22 @@ def process_camera_stream(
         logger.warning(f"[Cam {cam_id}] No images found in {source_path}")
         return
 
+    # position=tqdm_position makes them stack vertically (0=top, 1=next line, etc)
+    pbar = tqdm(
+        total=len(images),
+        desc=f"Cam {cam_id}",
+        position=tqdm_position,
+        leave=False,
+        initial=start_frame_idx,
+    )
+
     for frame_idx, img_file in enumerate(images):
+        if frame_idx < start_frame_idx:
+            continue
+
         frame = cv2.imread(str(img_file))
         if frame is None:
+            pbar.update(1)
             continue
 
         track_results = engine.det_model.track(
@@ -250,10 +302,11 @@ def process_camera_stream(
             tracker=system_config.tracker.type,
             conf=system_config.models.detection.conf_threshold,
             classes=system_config.models.detection.classes,
-            verbose=system_config.system.verbose,
+            verbose=False,
         )[0]
 
         frame_entities = []
+        overlay = frame.copy()
 
         # Only proceed if we have tracks
         if track_results.boxes is not None and track_results.boxes.id is not None:
@@ -263,7 +316,6 @@ def process_camera_stream(
 
             batch_bboxes_list = [b.tolist() for b in boxes_xyxy]
             all_poses = engine.get_pose_batch(frame, batch_bboxes_list)
-
             do_sam = frame_idx % engine.sam_interval == 0
 
             for i, track_id in enumerate(track_ids):
@@ -273,7 +325,6 @@ def process_camera_stream(
                 current_pose = all_poses[i] if i < len(all_poses) else []
 
                 move_status = movement_analyst.update(local_id, current_pose, bbox)
-                is_moving = move_status == "Moving"
 
                 # crop person for ReID
                 h, w = frame.shape[:2]
@@ -309,6 +360,16 @@ def process_camera_stream(
                 else:
                     color = (128, 128, 128)
 
+                # Draw SAM 2 Overlay (Semi-Transparent)
+                if polygons:
+                    for poly in polygons:
+                        # Convert list to numpy array of points
+                        pts = np.array(poly).reshape((-1, 1, 2)).astype(np.int32)
+                        # 1. Fill the polygon on the 'overlay' copy
+                        cv2.fillPoly(overlay, [pts], color)
+                        # 2. Draw border on original frame for sharpness
+                        cv2.polylines(frame, [pts], True, (255, 255, 255), 1)
+
                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
 
                 # Header Label (Global ID + Status)
@@ -331,20 +392,23 @@ def process_camera_stream(
                     k_color = (0, 255, 255) if kp_idx in [15, 16] else (0, 255, 0)
                     cv2.circle(frame, (int(kp[0]), int(kp[1])), 3, k_color, -1)
 
-                # Draw Polygon Overlay
-                if polygons:
-                    for poly in polygons:
-                        pts = np.array(poly).reshape((-1, 1, 2)).astype(np.int32)
-                        cv2.polylines(frame, [pts], True, color, 1)
+                # # Draw Polygon Overlay
+                # if polygons:
+                #     for poly in polygons:
+                #         pts = np.array(poly).reshape((-1, 1, 2)).astype(np.int32)
+                #         cv2.polylines(frame, [pts], True, color, 1)
+
+        cv2.addWeighted(overlay, 0.4, frame, 0.6, 0, frame)
 
         # Save Output
-        json_path = output_dir / f"{frame_idx:06d}.json"
-        with open(json_path, "w") as f:
+        with open(json_out / f"{frame_idx:06d}.json", "w") as f:
             json.dump(frame_entities, f, indent=2)
 
-        cv2.imwrite(str(output_dir / f"{frame_idx:06d}.jpg"), frame)
+        cv2.imwrite(str(img_out / f"{frame_idx:06d}.jpg"), frame)
+        pbar.update(1)
 
-    logger.info(f"[Cam {cam_id}] Stream Finished.")
+    pbar.close()
+    # logger.info(f"[Cam {cam_id}] Stream Finished.")
 
 
 @hydra.main(
@@ -361,13 +425,33 @@ def main(cfg: DictConfig):
     global_registry = GlobalIdentityRegistery(cfg)
     start_time = time.time()
 
+    # print(f"DEBUG: Type of cfg.cameras is {type(cfg.cameras)}")
+    # print(f"DEBUG: Contents of cfg.cameras: {cfg.cameras}")
+
+    camera_list = cfg.cameras
+    if isinstance(camera_list, (dict, DictConfig)):
+        print("WARNING: 'cameras' loaded as Dictionary. Converting to List...")
+        # If it's a dict, we want the values (the camera objects), not the keys (strings)
+        camera_list = list(camera_list.values())
+
     # excute camera streams in parallel
     with ThreadPoolExecutor(max_workers=cfg.system.num_workers) as executor:
         futures = []
-        for cam_cfg in cfg.cameras:
+        for i, cam_cfg in enumerate(camera_list):
+            if isinstance(cam_cfg, str):
+                print(
+                    f"CRITICAL ERROR: Camera config is a string: '{cam_cfg}'. Check YAML indentation."
+                )
+                continue
+
             futures.append(
                 executor.submit(
-                    process_camera_stream, cam_cfg, cfg, engine, global_registry
+                    process_camera_stream,
+                    cam_cfg,
+                    cfg,
+                    engine,
+                    global_registry,
+                    tqdm_position=i,
                 )
             )
 
