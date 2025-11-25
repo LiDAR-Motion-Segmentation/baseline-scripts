@@ -5,6 +5,7 @@
 /image_video_object_tracking/my*
 /image_video_object_tracking/equirectangular
 /image_video_object_tracking/pcd
+/image_video_object_tracking/output*
 .vscode
 /bag_annotation
 /annotation_sam2
