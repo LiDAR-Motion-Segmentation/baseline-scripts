@@ -49,12 +49,22 @@ class PersonEntity:
 
 
 class MovementAnalyst:
-    def __init__(self, history_len: int, movement_threshold: float):
+    def __init__(self, history_len: int, cooldown_frames: int = 5):
         # Stores history: {track_id: deque([(left_ankle, right_ankle, box_height), ...])}
         # Stores normalized leg metrics
         self.history = defaultdict(lambda: deque(maxlen=history_len))
-
-        self.threshold = movement_threshold
+        
+        # Stores how many frames to keep "Moving" status after movement stops
+        self.cooldowns = defaultdict(int)
+        self.cooldown_limit = cooldown_frames
+        
+        # self.threshold = movement_threshold
+        
+        # 1. Standard Deviation of Hip-Ankle distance (Vertical Swing)
+        self.var_threshold = 0.01 
+        # 2. Normalized distance between Left/Right Ankles (Horizontal Stride)
+        # If ankles are wider than 40% of box height, likely walking
+        self.stride_threshold = 0.40
 
     def update(
         self, track_id: int, keypoints: List[Tuple[float, float]], bbox: List[float]
@@ -72,6 +82,10 @@ class MovementAnalyst:
         # If this distance changes rapidly, the legs are swinging (Walking).
         # If this distance is constant, the legs are planted (Static),
         # even if the person moves across the screen due to robot motion.
+        
+        # Check visibility (MMPose returns 0,0 for invisible points)
+        if l_hip[0] == 0 or l_ankle[0] == 0 or r_ankle[0] == 0: 
+            return self._apply_cooldowns(track_id)
 
         # Calculate Box Height for Normalization (Scale Invariance)
         box_h = bbox[3] - bbox[1]
@@ -101,17 +115,38 @@ class MovementAnalyst:
 
         # Normalized leg length estimate
         leg_len_norm = abs(ankle_center_y - hip_center_y) / box_h
+        
+        # How far apart are the feet horizontally
+        ankle_spread_x = abs(l_ankle[0] - r_ankle[0])
+        # Normalized by height (more stable than width for turning people)
+        stride_norm = ankle_spread_x / box_h
+        
         self.history[track_id].append(leg_len_norm)
 
-        if len(self.history[track_id]) < self.history[track_id].maxlen:
-            return "Analyzing"
+        if len(self.history[track_id]) < 3:
+            return "Analysing"
 
         variance = np.std(list(self.history[track_id]))
-
-        if variance > self.threshold:
+        
+        # THE DECISION: Moving if (High Variance) OR (Wide Stride)
+        is_moving_physically = (variance > self.var_threshold) or (stride_norm > self.stride_threshold)
+        
+        # if variance > self.threshold:
+        #     return "Moving"
+        # else:
+        #     return "Static"
+        
+        if is_moving_physically:
+            self.cooldowns[track_id] = self.cooldown_limit
             return "Moving"
         else:
-            return "Static"
+            return self._apply_cooldowns(track_id)
+        
+    def _apply_cooldowns(self, track_id):
+        if self.cooldowns[track_id] > 0:
+            self.cooldowns[track_id] -= 1
+            return "Moving"
+        return "Static"
 
 
 class GlobalIdentityRegistery:
@@ -223,7 +258,7 @@ class AIModelEngine:
 
         results = self.sam_model(image, bboxes=[bbox], verbose=False, retina_masks=True)
         polygons = []
-        if results[0].masks is not None:
+        if results[0].masks is not None and len(results[0].masks.data) > 0:
             mask_data = results[0].masks.data[0].cpu().numpy()
             contours, _ = cv2.findContours(
                 mask_data.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
@@ -266,7 +301,7 @@ def process_camera_stream(
     # Initialize Movement Analyst from Config
     movement_analyst = MovementAnalyst(
         history_len=system_config.analysis.movement.history_len,
-        movement_threshold=system_config.analysis.movement.threshold,
+        # threshold=system_config.analysis.movement.threshold,
     )
 
     valid_exts = {".jpg", ".jpeg", ".png", ".bmp"}
@@ -355,10 +390,13 @@ def process_camera_stream(
                 # Color Logic: Red=Moving, Blue=Static, Grey=Unknown
                 if move_status == "Moving":
                     color = (0, 0, 255)
+                    skel_color = (0, 0, 255) # Red Skeleton
                 elif move_status == "Static":
                     color = (255, 0, 0)
+                    skel_color = (0, 255, 0) # Green Skeleton indicates "Anchored"
                 else:
                     color = (128, 128, 128)
+                    skel_color = (128, 128, 128)
 
                 # Draw SAM 2 Overlay (Semi-Transparent)
                 if polygons:
@@ -370,6 +408,25 @@ def process_camera_stream(
                         # 2. Draw border on original frame for sharpness
                         cv2.polylines(frame, [pts], True, (255, 255, 255), 1)
 
+                # Draw INTELLIGENT SKELETON (Legs Only)
+                # This helps you verify if the logic is looking at the legs
+                # Draw Line from Left Hip(11) to Left Ankle(15)
+                if len(current_pose) > 16:
+                    # helper to get point
+                    def gp(idx):
+                        return (int(current_pose[idx][0]), int(current_pose[idx][1]))
+                    
+                    # Draw Bones
+                    if current_pose[11][0] > 0 and current_pose[15][0] > 0:
+                        cv2.line(frame, gp(11), gp(15), skel_color, 2) # L Hip -> L Ankle
+                        
+                    if current_pose[12][0] > 0 and current_pose[16][0] > 0:
+                        cv2.line(frame, gp(12), gp(16), skel_color, 2) # R Hip -> R Ankle
+                        
+                    # Draw "Feet" to see stride
+                    cv2.circle(frame, gp(15), 5, (0,255,255), -1)
+                    cv2.circle(frame, gp(16), 5, (0,255,255), -1)
+                
                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
 
                 # Header Label (Global ID + Status)

@@ -42,7 +42,7 @@ tracker:
 analysis:
   movement:
     history_len: 10
-    threshold: 0.005 # 0.02 means the ankles must move 2% of the body height to be considered "Moving"
+    threshold: 0.03 # 0.02 means the ankles must move 2% of the body height to be considered "Moving"
 
 cameras:
   - id: 1
