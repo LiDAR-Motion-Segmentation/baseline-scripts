@@ -1,13 +1,15 @@
 # Auto annotation pipeline for wheelchair project
 1) Custom Data Parsing from ROSbags and Data Annotation pipeline in `Semantic Kitty` format for converting an rosbag into annotated data for `Motion Object Segmentation Algoritms` using `YOLOv8 + SAM2`.
-3) Hardware setup for custom data collection
-4) Docker devcontainer and RVIZ2 setup for visualization
-5) Image based multi object tracking using `YOLOv8 + SAM2 + SAHI + NMS` for detecting and tracking people walking at a distance in equirectangular images using `ByteTrack` for automated annotation pipeline for pointclouds with `RANSAC` for ground plane removal and outliers removal and `PCA` for orientation of 3D bounding box.
-6) Backprojection of `SAM masks` from 2D image to 3D pointcloud space using 5 intel realsense cameras 
-7) Deployment on `NVIDIA Jetson Orin NX` using `ONNX` and `TensorRT` for faster inferencing and realtime operation.
-8) Extra utility codes for adapting `Motion Object Segmentation Algoritms` for JRDB dataset and semantic kitty dataset for testing pointcloud based tracking algorithms for moving and non-moving objects segmentation
+2) Hardware setup for custom data collection
+3) Docker devcontainer and RVIZ2 setup for visualization
+4) Image based multi object tracking using `YOLOv8 + SAM2 + SAHI + NMS` for detecting and tracking people walking at a distance in equirectangular images using `ByteTrack` for automated annotation pipeline for pointclouds with `RANSAC` for ground plane removal and outliers removal and `PCA` for orientation of 3D bounding box.
+5) Backprojection of `SAM masks` from 2D image to 3D pointcloud space using 5 intel realsense cameras 
+6) Deployment on `NVIDIA Jetson Orin NX` using `ONNX` and `TensorRT` for faster inferencing and realtime operation.
+7) Multi Camera based Multi Object Tracking using 5 intel realsense cameras with `BoT-SORT` + `Torchreid` + `RTMPose` for detecting moving non moving people
+8) Benchmarking results on `MOT Challenge`  
+9) Extra utility codes for adapting `Motion Object Segmentation Algoritms` for JRDB dataset and semantic kitty dataset for testing pointcloud based tracking algorithms for moving and non-moving objects segmentation
 
-![alt text](./assets/Screenshot%20from%202025-11-06%2012-06-17.png)
+![alt text](./assets/Screenshot%20from%202025-11-25%2012-36-50.png)
 
 ## ROSbag processing for custom Dataset
 
@@ -379,6 +381,73 @@ python deployement_onnx_tensorrt/export_model.py --weights weights/sam_l.pt --mo
 # running using yolo onnx version and sam2 encoder and decoder version for faster inferencing speed
 python deployement_onnx_tensorrt/jetson_annotator.py --pcd_dir /path/to/your/pcd_files --image_dir /path/to/your/image_files --output_dir /path/to/your/output_directory --config config.yml --offset 3
 ```
+
+## Multi Camera based Multi Object Tracking
+- Added `Torchreid + RTMPose` for reID and pose estimation to determine whether a person is moving or static
+- Used `BoT-SORT` for moving camera based tracking because of a module called `GMC (Global Motion Compensation)`. It looks at the background features (floor patterns, shop signs), calculates exactly how much the robot moved, and corrects the Kalman Filter
+- Try to install `RTMPose` from  `Openmmpose` from their original website using their openmmlab anaconda environment for this so that you dont end up with dependency issues
+```bash
+pip install hydra-core tqdm ultralytics gdown torchreid
+tmux new -s annotation
+python3 image_video_object_tracking/multi_cam_mot_mall_image_tracking.py
+tmux a -t annotation 
+```
+![alt text](./assets/Screenshot%20from%202025-11-25%2012-19-35.png)
+
+## Benchmarking
+- MOT Challenge leaderboard benchmarks have been used
+- Convert the JSON files obtained from the previous code to convert into the MOT format
+
+```bash
+python3 benchmarking/convert_to_mot.py --input_dir /path/to/my/jsons --output_file ./results/seq1.txt
+```
+
+- Run `TrackEval` the official tool used by the MOTChallenge leaderboards to compare results
+```bash
+git clone https://github.com/JonathonLuiten/TrackEval.git
+cd TrackEval
+
+TrackEval/data/
+└── GT/
+    └── MOTChallenge/
+        └── robot-seq-01/
+            ├── gt/
+            │   └── gt.txt        <-- The file you exported for GT
+            └── seqinfo.ini       <-- A small config file
+```
+
+- In the `seqinfo.ini` put
+```
+[Sequence]
+name=robot-seq-01
+imDir=img1
+frameDir=img1
+seqLength=3620   <-- Update this to your frame count
+imWidth=1280     <-- Update Resolution
+imHeight=720
+imExt=.jpg
+```
+
+- Place Your Results: Put the cam_1.txt you generated here
+```
+TrackEval/data/trackers/MOTChallenge/robot-seq-01/MyAlgo/data/robot-seq-01.txt
+```
+- Run this command inside the `TrackEval` folder
+```bash
+python3 scripts/run_mot_challenge.py \
+    --BENCHMARK MOTChallenge \
+    --GT_FOLDER data/GT/MOTChallenge \
+    --TRACKERS_TO_EVAL MyAlgo \
+    --TRACKERS_FOLDER data/trackers/MOTChallenge \
+    --METRICS HOTA ClearMOT Identity
+```
+
+Metric | Full Name | What it tells 
+-- | -- | --
+HOTA | Higher Order Tracking Accuracy | The "One Number to Rule Them All." It balances detection (finding people) and association (tracking them). If this number goes up, your system is objectively better.
+IDF1 | ID F1 Score | Crucial for ReID. This measures how often a person keeps the correct ID. If your ReID module is working, this score will be high. If IDs switch constantly, this will be low.
+MOTA | Multi-Object Tracking Accuracy | The Old Standard. Good for seeing if you are missing people (False Negatives) or hallucinating people (False Positives).
+ID Sw | ID Switches | User Experience. Count this directly. "Over 10 seconds, we only swapped IDs 2 times." Lower is better.
 
 ## semantic kitty scripts
 - the files are placed in `training_script_semantic_kitty` directory
