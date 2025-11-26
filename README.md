@@ -449,6 +449,17 @@ IDF1 | ID F1 Score | Crucial for ReID. This measures how often a person keeps th
 MOTA | Multi-Object Tracking Accuracy | The Old Standard. Good for seeing if you are missing people (False Negatives) or hallucinating people (False Positives).
 ID Sw | ID Switches | User Experience. Count this directly. "Over 10 seconds, we only swapped IDs 2 times." Lower is better.
 
+| Method (MOT 20 test set) | HOTA ↑ | MOTA ↑ | IDF1 ↑ | FP (10⁴) ↓ | FN (10⁴) ↓ | IDSw ↓ |
+|----------------------|--------|--------|--------|-------------|-------------|--------|
+| FairMOT (IJCV 21)    | 54.6   | 61.8   | 67.3   | 10.3        | 8.89        | 5243   |
+| TransMOT (WACV 23)   | 61.9   | 77.5   | 75.2   | 3.42        | 8.08        | 1615   |
+| MeMOT (CVPR 22)      | 54.1   | 63.7   | 66.1   | 4.79        | 13.8        | 1938   |
+| ByteTrack (ECCV 22)  | 61.3   | 77.8   | 75.2   | 2.62        | 8.76        | 1223   |
+| OC-SORT (CVPR 23)    | 62.1   | 75.5   | 75.9   | 1.8         | 10.8        | 913    |
+| BoT-SORT             | 62.6   | 77.7   | 76.3   | 22521       | 8.6         | 1212   |
+| CAMOT (WACV 24)      | 62.8   | 78.2   | 76.1   | 2.09        | 9.13        | 945    |
+
+
 ## semantic kitty scripts
 - the files are placed in `training_script_semantic_kitty` directory
 
