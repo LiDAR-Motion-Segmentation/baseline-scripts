@@ -9,7 +9,7 @@
 8) Benchmarking results on `MOT Challenge`  
 9) Extra utility codes for adapting `Motion Object Segmentation Algoritms` for JRDB dataset and semantic kitty dataset for testing pointcloud based tracking algorithms for moving and non-moving objects segmentation
 
-![alt text](./assets/Screenshot%20from%202025-11-25%2012-36-50.png)
+![alt text](./assets/Screenshot%20from%202025-11-26%2011-08-17.png)
 
 ## ROSbag processing for custom Dataset
 
