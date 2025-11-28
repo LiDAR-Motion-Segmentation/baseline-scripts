@@ -6,8 +6,9 @@
 5) Backprojection of `SAM masks` from 2D image to 3D pointcloud space using 5 intel realsense cameras 
 6) Deployment on `NVIDIA Jetson Orin NX` using `ONNX` and `TensorRT` for faster inferencing and realtime operation.
 7) Multi Camera based Multi Object Tracking using 5 intel realsense cameras with `BoT-SORT` + `Torchreid` + `RTMPose` for detecting moving non moving people
-8) Benchmarking results on `MOT Challenge`  
-9) Extra utility codes for adapting `Motion Object Segmentation Algoritms` for JRDB dataset and semantic kitty dataset for testing pointcloud based tracking algorithms for moving and non-moving objects segmentation
+8) Benchmarking results on `MOT Challenge`
+9) Manual refinement code for images to fix false detections
+10) Extra utility codes for adapting `Motion Object Segmentation Algoritms` for JRDB dataset and semantic kitty dataset for testing pointcloud based tracking algorithms for moving and non-moving objects segmentation
 
 ![alt text](./assets/Screenshot%20from%202025-11-26%2011-08-17.png)
 
@@ -459,6 +460,17 @@ ID Sw | ID Switches | User Experience. Count this directly. "Over 10 seconds, we
 | BoT-SORT             | 62.6   | 77.7   | 76.3   | 22521       | 8.6         | 1212   |
 | CAMOT (WACV 24)      | 62.8   | 78.2   | 76.1   | 2.09        | 9.13        | 945    |
 
+## Manual refinement code
+- Since your data format (custom JSON with moving/static status and SAM polygons) is unique, standard tools like CVAT or LabelImg won't work out of the box without conversion scripts.
+### Controls:
+1. Click a bounding box (It turns Yellow).
+2. Change ID: Type the number in the box on the right and click "Update ID".
+3. Toggle Moving/Static: Press M on your keyboard (or click the button).
+4. Delete Mannequin: Press Delete on your keyboard.
+5. Next Frame: Press Right Arrow. This Auto-Saves to the corrected folder.
+```
+python3 manual_refinement_tools/manual_refiner.py --input_dir /scratch/user/data/cam_5
+```
 
 ## semantic kitty scripts
 - the files are placed in `training_script_semantic_kitty` directory
