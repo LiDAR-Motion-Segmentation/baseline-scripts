@@ -11,17 +11,17 @@ import argparse
 
 
 class MallTrackingRefiner:
-    def __init__(self, root, input_dir, output_dir):
+    def __init__(self, root, json_dir, img_dir, out_dir):
         self.root = root
-        self.root.title(f"Refiner Tool - {input_dir.name}")
-        self.root.geometry("1400x900")
+        self.root.title(f"Refiner Tool : {json_dir.name} <-> {img_dir.name}")
+        self.root.geometry("1650x850")
 
-        self.json_dir = input_dir / "json"
-        self.img_dir = input_dir / "images"
+        self.json_dir = json_dir
+        self.img_dir = img_dir
 
-        self.out_json = output_dir / "json"
-        self.out_img = output_dir / "images"
-        self.out_labels = output_dir / "labels"
+        self.out_json = out_dir / "json"
+        self.out_img = out_dir / "images"
+        self.out_labels = out_dir / "labels"
 
         self.out_json.mkdir(parents=True, exist_ok=True)
         self.out_img.mkdir(parents=True, exist_ok=True)
@@ -142,51 +142,58 @@ class MallTrackingRefiner:
         ).pack(side=tk.RIGHT)
 
     def load_frame(self):
-        json_path = self.files[self.current_idx]
-        img_filename = f"{json_path.stem}.jpg"
-        img_path = self.img_dir / img_filename
+        input_json_path = self.files[self.current_idx]
+        stem = input_json_path.stem  # e.g. "000123"
 
-        if not img_path.exists():
-            img_path = self.img_dir / f"{json_path.stem}.png"
-            if not img_path.exists():
-                messagebox.showerror("Error", f"Image not found:\n{img_filename}")
-            return
+        # This ensures we load your previous edits
+        output_json_path = self.out_json / input_json_path.name
 
-        with open(json_path, "r") as f:
+        if output_json_path.exists():
+            # Load the file you edited
+            load_path = output_json_path
+            print(f"Loading corrected: {output_json_path.name}")
+        else:
+            # First time loading: Load original
+            load_path = input_json_path
+            print(f"Loading original: {input_json_path.name}")
+
+        with open(load_path, "r") as f:
             self.current_data = json.load(f)
 
-        pil_img = Image.open(img_path)
+        # SEARCH LOGIC: Check valid extensions
+        valid_exts = [".png", ".jpg", ".jpeg", ".bmp"]
+        found_img_path = None
 
-        # to fit into the window
-        screen_w = self.root.winfo_width() - 320  # Subtract control panel
-        screen_h = self.root.winfo_height()
+        for ext in valid_exts:
+            candidate = self.img_dir / f"{stem}{ext}"
+            if candidate.exists():
+                found_img_path = candidate
+                break
 
-        if screen_w < 100:
-            screen_w = 1000  # Fallback during init
-        if screen_h < 100:
-            screen_h = 800
+        if found_img_path is None:
+            messagebox.showerror(
+                "Error", f"Image not found for {stem}.\nChecked: {valid_exts}"
+            )
+            return
 
-        w_ratio = screen_w / pil_img.width
-        h_ratio = screen_h / pil_img.height
-        self.scale_factor = min(w_ratio, h_ratio, 1.0)
+        # Store the actual path for saving later
+        self.current_img_path = found_img_path
+        self.pil_img = Image.open(self.current_img_path)
+        self.scale_factor = 1.0
+        # # If you strictly want to force 1280x720 even if input is huge/small:
+        # self.pil_img = self.pil_img.resize((1280, 720), Image.Resampling.LANCZOS)
 
-        new_w = int(pil_img.width * self.scale_factor)
-        new_h = int(pil_img.height * self.scale_factor)
-
-        self.display_img = pil_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+        self.display_img = self.pil_img
         self.tk_img = ImageTk.PhotoImage(self.display_img)
 
-        # reset selection
         self.selected_obj_idx = -1
-        self.lbl_frameconfig(
-            text=f"{json_path.name} ({self.current_idx + 1}/{len(self.files)})"
+        self.lbl_frame.config(
+            text=f"{input_json_path.name} ({self.current_idx + 1}/{len(self.files)})"
         )
         self.redraw()
 
     def redraw(self):
         self.canvas.delete("all")
-
-        # might have ankor bugs need to check
         self.canvas.create_image(0, 0, anchor=tk.NW, image=self.tk_img)
 
         for idx, obj in enumerate(self.current_data):
@@ -305,13 +312,12 @@ class MallTrackingRefiner:
         with open(dst_json, "w") as f:
             json.dump(self.current_data, f, indent=2)
 
-        # Copy Original Image (for completeness)
-        img_filename = f"{src_json.stem}.jpg"
-        src_img = self.img_dir / img_filename
-        dst_img = self.out_img / img_filename
-        if src_img.exists() and not dst_img.exists():
-            shutil.copy(src_img, dst_img)
+        if hasattr(self, "current_img_path") and self.current_img_path.exists():
+            dst_img = self.out_img / self.current_img_path.name
+            if not dst_img.exists():
+                shutil.copy(self.current_img_path, dst_img)
 
+        # Export YOLO Labels
         if hasattr(self, "pil_img"):
             txt_filename = f"{src_json.stem}.txt"
             dst_txt = self.out_labels / txt_filename
@@ -320,7 +326,6 @@ class MallTrackingRefiner:
     def export_yolo_txt(self, output_path, img_w, img_h):
         with open(output_path, "w") as f:
             for obj in self.current_data:
-
                 # class ID 0 for person
                 class_id = 0
 
@@ -345,28 +350,16 @@ class MallTrackingRefiner:
                         ny = max(0.0, min(1.0, ny))
                         normalized_points.append(f"{nx:.6f} {ny:.6f}")
 
-                    line = "{class_id} {' '.join(normalized_points)}\n"
+                    line = f"{class_id} {' '.join(normalized_points)}\n"
                     f.write(line)
 
                 else:
                     # Fallback to Bounding Box (YOLO Detect Format)
                     # class x_center y_center width height
                     x1, y1, x2, y2 = obj["bbox"]
-                    dw = 1.0 / img_w
-                    dh = 1.0 / img_h
-
-                    w = x2 - x1
-                    h = y2 - y1
-                    x_center = x1 + (w / 2.0)
-                    y_center = y1 + (h / 2.0)
-
-                    # Normalize
-                    x_center *= dw
-                    w *= dw
-                    y_center *= dh
-                    h *= dh
-
-                    line = f"{class_id} {x_center:.6f} {y_center:.6f} {w:.6f} {h:.6f}\n"
+                    w, h = x2 - x1, y2 - y1
+                    x_c, y_c = x1 + w / 2, y1 + h / 2
+                    line = f"{class_id} {x_c/img_w:.6f} {y_c/img_h:.6f} {w/img_w:.6f} {h/img_h:.6f}\n"
                     f.write(line)
 
 
@@ -374,18 +367,18 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Manual Refiner Tool for Mall Tracking Data"
     )
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument(
-        "--cam", type=str, help="Camera ID to edit (e.g., '1' or 'cam_1')"
-    )
-    group.add_argument(
-        "--input_dir", type=str, help="Full path to a specific 'cam_X' folder"
+    # Explicit Arguments
+    parser.add_argument(
+        "--img_dir", type=str, help="Path to RAW images (e.g. ./data/cam_1)"
     )
     parser.add_argument(
-        "--root",
-        type=str,
-        default="./output_fixed_data",
-        help="Root output directory (default: ./output_data)",
+        "--json_dir", type=str, help="Path to detected JSONs (e.g. ./output/cam_1/json)"
+    )
+    parser.add_argument("--out_dir", type=str, help="Path to save corrected dataset")
+
+    # Legacy/Shortcuts
+    parser.add_argument(
+        "--cam", type=str, help="Shortcut: Camera ID (assumes ./data structure)"
     )
 
     return parser.parse_args()
@@ -394,31 +387,42 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
 
-    if args.input_dir:
-        # Use full path provided
-        input_path = Path(args.input_dir)
-    else:
-        # Construct path from Camera ID
-        cam_name = args.cam if args.cam.startswith("cam_") else f"cam_{args.cam}"
-        input_path = Path(args.root) / cam_name
+    if args.img_dir and args.json_dir:
+        img_path = Path(args.img_dir)
+        json_path = Path(args.json_dir)
 
-    # Validate Input Path
-    if not input_path.exists():
-        print(f"\n[ERROR] Directory not found: {input_path}")
-        print(f"Please check your --root or --cam arguments.\n")
+        if not img_path.exists():
+            print(f"[ERROR] Image directory does not exist: {img_path}")
+            sys.exit(1)
+        if not json_path.exists():
+            print(f"[ERROR] JSON directory does not exist: {json_path}")
+            sys.exit(1)
+
+        if args.out_dir:
+            out_path = Path(args.out_dir)
+        else:
+            out_path = json_path.parent.parent / f"{json_path.parent.name}_corrected"
+
+    elif args.cam:
+        # Construct path from Camera ID
+        cam_str = args.cam if args.cam.startswith("cam_") else f"cam_{args.cam}"
+        img_path = Path(f"./data/{cam_str}")
+        json_path = Path(f"./output_data/{cam_str}/json")
+        out_path = Path(f"./output_data/{cam_str}_corrected")
+
+    else:
+        print("Error: You must provide either (--img_dir AND --json_dir) OR (--cam)")
         sys.exit(1)
 
-    # Determine Output Path (Auto-create '_corrected')
-    output_path = input_path.parent / f"{input_path.name}_corrected"
-
     print(f"\n--- LAUNCHING REFINER ---")
-    print(f"Input:  {input_path}")
-    print(f"Output: {output_path}")
+    print(f"Images: {img_path}")
+    print(f"JSONs:  {json_path}")
+    print(f"Save:   {out_path}")
     print("-" * 30)
 
     # Launch GUI
     root = tk.Tk()
     # Center window fix
     root.eval("tk::PlaceWindow . center")
-    app = MallTrackingRefiner(root, input_path, output_path)
+    app = MallTrackingRefiner(root, json_path, img_path, out_path)
     root.mainloop()
