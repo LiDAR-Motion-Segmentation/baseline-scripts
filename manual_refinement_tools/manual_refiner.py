@@ -13,7 +13,7 @@ import argparse
 class MallTrackingRefiner:
     def __init__(self, root, input_dir, output_dir):
         self.root = root
-        self.root.title("Mall Tracking Refiner (Human-in-the-Loop)")
+        self.root.title(f"Refiner Tool - {input_dir.name}")
         self.root.geometry("1400x900")
 
         self.json_dir = input_dir / "json"
@@ -21,11 +21,15 @@ class MallTrackingRefiner:
 
         self.out_json = output_dir / "json"
         self.out_img = output_dir / "images"
+        self.out_labels = output_dir / "labels"
 
         self.out_json.mkdir(parents=True, exist_ok=True)
         self.out_img.mkdir(parents=True, exist_ok=True)
+        self.out_labels.mkdir(parents=True, exist_ok=True)
 
-        self.files = sorted(list(self.json_dir.glob("*.json")))
+        all_jsons = sorted(list(self.json_dir.glob("*.json")))
+
+        self.files = [f for f in all_jsons if f.stem.isdigit()]
 
         if not self.files:
             messagebox.showerror(
@@ -139,11 +143,13 @@ class MallTrackingRefiner:
 
     def load_frame(self):
         json_path = self.files[self.current_idx]
-        img_filename = f"{json_path.stem[1:]}.jpg"
+        img_filename = f"{json_path.stem}.jpg"
         img_path = self.img_dir / img_filename
 
         if not img_path.exists():
-            messagebox.showerror("Error", f"Image file not found:\n{img_path}")
+            img_path = self.img_dir / f"{json_path.stem}.png"
+            if not img_path.exists():
+                messagebox.showerror("Error", f"Image not found:\n{img_filename}")
             return
 
         with open(json_path, "r") as f:
@@ -300,11 +306,68 @@ class MallTrackingRefiner:
             json.dump(self.current_data, f, indent=2)
 
         # Copy Original Image (for completeness)
-        img_filename = f"{src_json.stem[1]}.jpg"
+        img_filename = f"{src_json.stem}.jpg"
         src_img = self.img_dir / img_filename
         dst_img = self.out_img / img_filename
         if src_img.exists() and not dst_img.exists():
             shutil.copy(src_img, dst_img)
+
+        if hasattr(self, "pil_img"):
+            txt_filename = f"{src_json.stem}.txt"
+            dst_txt = self.out_labels / txt_filename
+            self.export_yolo_txt(dst_txt, self.pil_img.width, self.pil_img.height)
+
+    def export_yolo_txt(self, output_path, img_w, img_h):
+        with open(output_path, "w") as f:
+            for obj in self.current_data:
+
+                # class ID 0 for person
+                class_id = 0
+
+                if "segmentation_polygon" in obj and obj["segmentation_polygon"]:
+                    # YOLO Seg Format: class x1 y1 x2 y2 ...
+                    # Flatten the list of lists [[x,y], [x,y]] -> [x,y,x,y]
+                    flat_poly = []
+                    for poly_part in obj["segmentation_polygon"]:
+                        if isinstance(poly_part, list):
+                            flat_poly.extend(poly_part)
+                        else:
+                            flat_poly.append(poly_part)
+
+                    # normalizing
+                    normalized_points = []
+                    for i in range(0, len(flat_poly), 2):
+                        nx = flat_poly[i] / img_w
+                        ny = flat_poly[i + 1] / img_h
+
+                        # clamp to 0-1
+                        nx = max(0.0, min(1.0, nx))
+                        ny = max(0.0, min(1.0, ny))
+                        normalized_points.append(f"{nx:.6f} {ny:.6f}")
+
+                    line = "{class_id} {' '.join(normalized_points)}\n"
+                    f.write(line)
+
+                else:
+                    # Fallback to Bounding Box (YOLO Detect Format)
+                    # class x_center y_center width height
+                    x1, y1, x2, y2 = obj["bbox"]
+                    dw = 1.0 / img_w
+                    dh = 1.0 / img_h
+
+                    w = x2 - x1
+                    h = y2 - y1
+                    x_center = x1 + (w / 2.0)
+                    y_center = y1 + (h / 2.0)
+
+                    # Normalize
+                    x_center *= dw
+                    w *= dw
+                    y_center *= dh
+                    h *= dh
+
+                    line = f"{class_id} {x_center:.6f} {y_center:.6f} {w:.6f} {h:.6f}\n"
+                    f.write(line)
 
 
 def parse_args():
@@ -321,7 +384,7 @@ def parse_args():
     parser.add_argument(
         "--root",
         type=str,
-        default="./output_data",
+        default="./output_fixed_data",
         help="Root output directory (default: ./output_data)",
     )
 
