@@ -468,9 +468,15 @@ ID Sw | ID Switches | User Experience. Count this directly. "Over 10 seconds, we
 3. Toggle Moving/Static: Press M on your keyboard (or click the button).
 4. Delete Mannequin: Press Delete on your keyboard.
 5. Next Frame: Press Right Arrow. This Auto-Saves to the corrected folder.
+
+```bash
+pip install tk pillow 
+python3 manual_refinement_tools/manual_refiner.py \
+    --img_dir /scratch/soumo/data/cam_1 \
+    --json_dir /scratch/soumo/output_data/cam_1/json \
+    --out_dir /scratch/soumo/final_dataset/cam_1
 ```
-python3 manual_refinement_tools/manual_refiner.py --input_dir /scratch/user/data/cam_5
-```
+![alt text](./assets/Screenshot%20from%202025-11-29%2019-16-13.png)
 
 ## semantic kitty scripts
 - the files are placed in `training_script_semantic_kitty` directory
