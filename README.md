@@ -341,7 +341,7 @@ Modes:
 - setup uses 5 intel realsense camera to obtain images where `SAM2` mask are made and are backprojected using the cameras intrinsics and extrinsics
 ```bash
 # to visualize data from 5 or more realsense camera on rerun use
-bash rosbag_processing_script/run_multicam_viz
+bash rosbag_processing_script/run_multicam_viz.sh
 ```
 ![alt text](./assets/Screenshot%20from%202025-11-14%2012-22-00.png)
 
