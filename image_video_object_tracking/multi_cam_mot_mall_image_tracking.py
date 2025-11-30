@@ -23,6 +23,9 @@ try:
     import torchreid
     from ultralytics import YOLO, SAM
     import mmcv
+    from sahi import AutoDetectionModel
+    from sahi.predict import get_sliced_prediction
+    from boxmot import BoTSORT
 except ImportError as e:
     print(f"CRITICAL MISSING LIB: {e}")
     sys.exit(1)
@@ -193,7 +196,16 @@ class AIModelEngine:
     def __init__(self, cfg: DictConfig):
         self.device = cfg.system.device
         logger.info(f"Initializing AI Engine : {self.device}")
-        self.det_model = YOLO(cfg.models.detection.path)
+        print(f"Loading SAHI Model: {cfg.models.detection.path}")
+        self.sahi_model = AutoDetectionModel.from_pretrained(
+            model_type='ultralytics',
+            model_path=cfg.models.detection.path,
+            confidence_threshold=cfg.models.detection.conf_threshold,
+            device=self.device
+            )
+        self.sahi_cfg = cfg.models.sahi
+        
+        # self.det_model = YOLO(cfg.models.detection.path)
         logger.info("Loading MMpose (RTMPose)")
         self.pose_inferencer = MMPoseInferencer(
             pose2d="human",
@@ -210,6 +222,30 @@ class AIModelEngine:
         self.reid_model.eval()
         self.sam_model = SAM(cfg.models.segmentation.path)
         self.sam_interval = cfg.models.segmentation.run_every_n_frames
+        
+    def detect_sahi(self, frame: np.ndarray) -> np.ndarray:
+        result = get_sliced_prediction(
+            frame,
+            self.sahi_model,
+            slice_height= self.sahi_cfg.slice_height,
+            slice_width= self.sahi_cfg.slice_width,
+            overlap_height_ratio= self.sahi_cfg.overlap_ratio,
+            overlap_width_ratio= self.sahi_cfg.overlap_ratio,
+            verbose= self.sahi_cfg.verbose
+        )
+        
+        # Convert SAHI objects to Numpy Array for Tracker
+        detections = []
+        for obj in result.object_prediction_list:
+            if obj.category.id == 0:
+                x1, y1, x2, y2 = obj.bbox.to_xyxy()
+                conf = obj.score.value
+                cls = 0 
+                detections.append([x1, y1, x2, y2, conf, cls])
+                
+        if not detections:
+            return np.empty((0, 6))
+        return np.array(detections)
 
     @torch.inference_mode()
     def get_reid_features(self, crop: np.ndarray) -> np.ndarray:
@@ -292,18 +328,23 @@ def process_camera_stream(
     existing_jsons = sorted(list(json_out.glob("*.json")))
     if existing_jsons:
         try:
-            last_file = existing_jsons[-1]
-            last_idx = int(last_file.stem.split("_")[1])
-            start_frame_idx = last_idx + 1
+            start_frame_idx = int(existing_jsons[-1].stem) + 1 # Fixed for 000000 format
             if tqdm_position == 0:
                 print(f"Resuming Cam {cam_id} from frame {start_frame_idx}")
         except:
             pass
+        
+    tracker = BoTSORT(
+        model_weights=Path(system_config.models.reid.path),
+        device=system_config.system.device,
+        fp16=True
+    )
 
     # Initialize Movement Analyst from Config
     movement_analyst = MovementAnalyst(
         history_len=system_config.analysis.movement.history_len,
         # threshold=system_config.analysis.movement.threshold,
+        cooldown_frames=system_config.analysis.movement.cooldown_frames
     )
 
     valid_exts = {".jpg", ".jpeg", ".png", ".bmp"}
@@ -332,24 +373,34 @@ def process_camera_stream(
         if frame is None:
             pbar.update(1)
             continue
+        
+        detections = engine.detect_sahi(frame)
+        
+        track_results = tracker.update(detections, frame)
 
-        track_results = engine.det_model.track(
-            frame,
-            persist=True,
-            tracker=system_config.tracker.type,
-            conf=system_config.models.detection.conf_threshold,
-            classes=system_config.models.detection.classes,
-            verbose=False,
-        )[0]
+        # track_results = engine.det_model.track(
+        #     frame,
+        #     persist=True,
+        #     tracker=system_config.tracker.type,
+        #     conf=system_config.models.detection.conf_threshold,
+        #     classes=system_config.models.detection.classes,
+        #     verbose=False,
+        # )[0]
 
         frame_entities = []
         overlay = frame.copy()
 
         # Only proceed if we have tracks
-        if track_results.boxes is not None and track_results.boxes.id is not None:
-            boxes_xyxy = track_results.boxes.xyxy.cpu().numpy()
-            track_ids = track_results.boxes.id.cpu().numpy()
-            confs = track_results.boxes.conf.cpu().numpy()
+        # if track_results.boxes is not None and track_results.boxes.id is not None:
+        #     boxes_xyxy = track_results.boxes.xyxy.cpu().numpy()
+        #     track_ids = track_results.boxes.id.cpu().numpy()
+        #     confs = track_results.boxes.conf.cpu().numpy()
+        
+        if track_results.size > 0:
+            # BoxMOT returns x1, y1, x2, y2, id, conf...
+            boxes_xyxy = track_results[:, :4]
+            track_ids = track_results[:, 4].astype(int)
+            confs = track_results[:, 5]
 
             batch_bboxes_list = [b.tolist() for b in boxes_xyxy]
             all_poses = engine.get_pose_batch(frame, batch_bboxes_list)
@@ -369,8 +420,11 @@ def process_camera_stream(
                 cx2, cy2 = min(w, x2), min(h, y2)
                 reid_crop = frame[cy1:cy2, cx1:cx2]
 
-                reid_feats = engine.get_reid_features(reid_crop)
-                global_id = global_registry.resolve_identity(reid_feats)
+                if (cx2 - cx1) > 10 and (cy2 - cy1) > 10:
+                    reid_feats = engine.get_reid_features(frame[cy1:cy2, cx1:cx2])
+                    global_id = global_registry.resolve_identity(reid_feats)
+                else:
+                    global_id = -1
 
                 polygons = []
                 if do_sam:

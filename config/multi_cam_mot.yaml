@@ -16,6 +16,12 @@ models:
     conf_threshold: 0.25
     classes: [0]
 
+  sahi:
+    slice_height: 512
+    slice_width: 512
+    overlap_ratio: 0.2
+    verbose: 0
+
   pose:
     type: "human"
 
@@ -26,6 +32,7 @@ models:
   reid:
     name: "osnet_x1_0"
     match_threshold: 0.75 # # 0.75 = Strict (Less false positives, but might lose ID if person turns 180 deg)
+    path: "/scratch/soumo_roy/baseline-scripts/weights/osnet_x0_25_msmt17.pt"
 
 tracker:
   type: "botsort.yaml"
@@ -43,6 +50,7 @@ analysis:
   movement:
     history_len: 10
     threshold: 0.03 # 0.02 means the ankles must move 2% of the body height to be considered "Moving"
+    cooldown_frames: 5
 
 cameras:
   - id: 1
