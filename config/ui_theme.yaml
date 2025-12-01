@@ -1,0 +1,32 @@
+window:
+  width: 1650
+  height: 900
+  title_prefix: "Refiner Pro"
+
+colors:
+  # General UI
+  background: "#1e1e1e"        # Main dark grey
+  panel_bg: "#252526"          # Sidebar grey
+  text_primary: "#d4d4d4"      # Light grey text
+  text_secondary: "#888888"    # Dimmed text
+
+  # Interactive Elements
+  button_bg: "#3c3c3c"
+  button_fg: "#ffffff"
+  entry_bg: "#3c3c3c"
+  entry_fg: "#ffffff"
+  
+  # Logic States (The Boxes)
+  highlight: "#e5c07b"         # Yellow (Selected)
+  accent: "#007acc"            # Blue (Static/Info)
+  danger: "#f44747"            # Red (Moving/Delete)
+  success: "#6a9955"           # Green (Propagated)
+  
+  # Canvas specific
+  canvas_bg: "#000000"
+
+fonts:
+  main: ["Segoe UI", 10]
+  header: ["Segoe UI", 12, "bold"]
+  mono: ["Consolas", 11]       # For IDs and frames
+  large_label: ["Segoe UI", 14, "bold"]
