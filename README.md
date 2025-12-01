@@ -462,6 +462,7 @@ ID Sw | ID Switches | User Experience. Count this directly. "Over 10 seconds, we
 
 ## Manual refinement code
 - Since your data format (custom JSON with moving/static status and SAM polygons) is unique, standard tools like CVAT or LabelImg won't work out of the box without conversion scripts.
+
 ### Controls:
 1. Click a bounding box (It turns Yellow).
 2. Change ID: Type the number in the box on the right and click "Update ID".
@@ -469,14 +470,43 @@ ID Sw | ID Switches | User Experience. Count this directly. "Over 10 seconds, we
 4. Delete Mannequin: Press Delete on your keyboard.
 5. Next Frame: Press Right Arrow. This Auto-Saves to the corrected folder.
 
+### Speeding up the process
+1. Forward Propagation (Hotkeys P and Shift+M):
+
+- If you fix an ID in Frame 10, pressing P will automatically fix that ID in all future frames until the person disappears.
+- If you mark a person as "Static", pressing Shift+M will mark them Static for the rest of the video.
+
+2. Fast Navigation:
+
+- Shift + Right Arrow: Jump 50 frames.
+- Ctrl + Right Arrow: Jump 100 frames.
+
+3. Visual Focus:
+
+- The tool now prints "Propagated to X frames" so you know it worked without checking every single frame.
+
 ```bash
 pip install tk pillow 
+
+# for light mode
 python3 manual_refinement_tools/manual_refiner.py \
     --img_dir /scratch/soumo/data/cam_1 \
     --json_dir /scratch/soumo/output_data/cam_1/json \
     --out_dir /scratch/soumo/final_dataset/cam_1
 ```
 ![alt text](./assets/Screenshot%20from%202025-11-29%2019-16-13.png)
+
+- Colour scheme can be changed from the `config/ui_theme.yaml`
+
+```bash
+# for dark mode and propagation feature for future ID ,class with completion bar
+python3 manual_refiner_v2.py \         
+    --img_dir /home/soumoroy/Downloads/MCMPT_output_nice_op/camera1 \
+    --json_dir /home/soumoroy/Downloads/MCMPT_output_nice_op/cam_1/json \
+    --out_dir /home/soumoroy/Downloads/MCMPT_output_nice_op/final_dataset/cam_1 \
+    --config /home/soumoroy/baseline-scripts/config/ui_theme.yaml
+```
+![alt text](./assets/Screenshot%20from%202025-12-01%2017-09-50.png)
 
 ## semantic kitty scripts
 - the files are placed in `training_script_semantic_kitty` directory
