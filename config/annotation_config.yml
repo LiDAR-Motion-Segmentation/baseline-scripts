@@ -1,0 +1,37 @@
+window:
+  width: 1650
+  height: 950
+  title_prefix: "Refiner Pro By Soumo Roy"
+
+colors:
+  # Base UI
+  bg: "#1e1e1e"
+  panel_bg: "#252526"
+  fg: "#d4d4d4"
+  
+  # Canvas
+  canvas_bg: "#000000"
+
+  # Controls
+  btn_bg: "#3c3c3c"
+  btn_fg: "#ffffff"
+  entry_bg: "#2d2d2d"
+  entry_fg: "#ffffff"
+
+  highlight: "#e5c07b"  # Yellow (Selected Object)
+  static: "#007acc"     # Blue (Static Person)
+  moving: "#f44747"     # Red (Moving Person)
+  analyzing: "#d7ba7d"  # Orange (Calculating)
+  unknown: "#888888"    # Grey (No data)
+
+fonts:
+  # [Font Family, Size, Weight]
+  # Note: Tkinter needs tuples, we handle conversion in Python
+  main: ["Segoe UI", 10]
+  header: ["Segoe UI", 12, "bold"]
+  mono: ["Consolas", 12]
+  large_label: ["Segoe UI", 14, "bold"]
+
+defaults:
+  new_box_status: "Static"
+  handle_size: 8
