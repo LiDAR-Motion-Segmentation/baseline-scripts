@@ -8,6 +8,9 @@ from pathlib import Path
 from tqdm import tqdm
 from collections import defaultdict
 from scipy.spatial.distance import cosine
+import sys
+
+sys.setrecursionlimit(20000)
 
 
 class Node:
@@ -36,44 +39,64 @@ class SplayTree:
         return y
 
     def _splay(self, root, key):
-        if root is None or root.key == key:
-            return root
+        if root is None:
+            return None
 
-        # key lies in left subtree
-        if key < root.key:
-            if root.left is None:
-                return root
+        # Use a dummy header node to hold the Left and Right trees
+        # during the restructuring
+        header = Node(None, None)  # Assuming your class is named Node
+        header.left = header.right = None
 
-            # Zig-Zig (Left Left)
-            if key < root.left.key:
-                root.left.left = self._splay(root.left.left, key)
-                root = self._right_rotate(root)
+        left_tree_max = header
+        right_tree_min = header
 
-            # Zig-Zag (Left Right)
-            elif key > root.left.key:
-                root.left.right = self._splay(root.left.left, key)
-                if root.left.right:
-                    root.left = self._right_rotate(root.left)
+        while True:
+            if key < root.key:
+                if root.left is None:
+                    break
 
-            return self._right_rotate(root) if root.left else root
+                # Zig-Zig (Rotate Right)
+                if key < root.left.key:
+                    y = root.left
+                    root.left = y.right
+                    y.right = root
+                    root = y
+                    if root.left is None:
+                        break
 
-        # key lies in rigth subtree
-        else:
-            if root.right is None:
-                return root
+                # Link to Right Tree
+                right_tree_min.left = root
+                right_tree_min = root
+                root = root.left
 
-            # Zag-Zag (Right Right)
-            if key > root.right.key:
-                root.right.right = self._splay(root.right.right, key)
-                root = self._left_rotate(root)
+            elif key > root.key:
+                if root.right is None:
+                    break
 
-            # Zag-zig (Right Left)
-            elif key < root.right.key:
-                root.right.left = self._splay(root.right.left, key)
-                if root.right.left:
-                    root.right = self._right_rotate(root.right)
+                # Zag-Zag (Rotate Left)
+                if key > root.right.key:
+                    y = root.right
+                    root.right = y.left
+                    y.left = root
+                    root = y
+                    if root.right is None:
+                        break
 
-            return self._left_rotate(root) if root.right else root
+                # Link to Left Tree
+                left_tree_max.right = root
+                left_tree_max = root
+                root = root.right
+
+            else:
+                break
+
+        # Assemble: Link Left, Right, and Middle
+        left_tree_max.right = root.left
+        right_tree_min.left = root.right
+        root.left = header.right
+        root.right = header.left
+
+        return root
 
     def insert(self, key, data):
         if self.root is None:
@@ -89,7 +112,7 @@ class SplayTree:
         new_node = Node(key, data)
         if key < self.root.key:
             new_node.right = self.root
-            new_node.left = self.root.link
+            new_node.left = self.root.left
             self.root.left = None
         else:
             new_node.left = self.root
@@ -254,7 +277,7 @@ def run_stitching(json_dir, img_dir, out_dir):
             # SIAMESE MATCHING
             # Compare Avg Feature of Candidate vs Current
             sim = siamese.compute_similarity(
-                candidate.avg_feature, current_track.avg_feature
+                candidate.avg_features, current_track.avg_features
             )
 
             # threshold for the same person
@@ -268,9 +291,9 @@ def run_stitching(json_dir, img_dir, out_dir):
                 candidate.end_frame = current_track.end_frame
 
                 # update features (weighted avg)
-                if current_track.avg_feature is not None:
-                    candidate.avg_feature = (
-                        candidate.avg_feature + current_track.avg_feature
+                if current_track.avg_features is not None:
+                    candidate.avg_features = (
+                        candidate.avg_features + current_track.avg_features
                     ) / 2.0
 
                 # Re-insert into Splay Tree with NEW end time
