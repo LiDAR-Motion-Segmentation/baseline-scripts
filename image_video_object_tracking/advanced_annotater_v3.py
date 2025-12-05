@@ -579,9 +579,12 @@ def run_processing_pipeline(
             )
 
             # Process Detections (3D BBox, State, Formatting)
-            json_data, yolo_lines, viz_detections, tracker_history = (
-                process_frame_detection(frame_data, tracker_history, config)
-            )
+            (
+                json_data,
+                yolo_lines,
+                viz_detections,
+                tracker_history,
+            ) = process_frame_detection(frame_data, tracker_history, config)
 
             save_outputs(
                 frame,

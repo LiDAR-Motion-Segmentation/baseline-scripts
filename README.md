@@ -508,6 +508,18 @@ python3 manual_refiner_v2.py \
 ```
 ![alt text](./assets/Screenshot%20from%202025-12-01%2017-09-50.png)
 
+## Stitching code for fixing tracks
+- `siamese_splay_stitcher.py` code solves the problem of `Identity Switching` in video tracking. When an object is occluded and reappears, standard trackers assign it a new ID.
+- We use a `Siamese Network` to visually compare the new object against a database of lost objects. To make this search efficient in real-time, we store lost tracks in a Splay Tree.
+- We chose a `Splay Tree` because of `Temporal Locality`: an object that disappears is most likely to reappear soon. The Splay Tree automatically keeps recent data at the top of the structure, ensuring that our search for re-identification candidates is computationally optimized, even as the video gets longer
+
+```bash
+python3 manual_refinement_tools/siamese_splay_stitcher.py \
+--json_dir /scratch/soumo_roy/baseline-scripts/image_video_object_tracking/MCMPT_output_nice_op/cam_4/json \
+--img_dir /scratch/soumo_roy/baseline-scripts/image_video_object_tracking/MCMPT_output_nice_op/cam_4/images \
+--out_dir ./siamese_op_cam4
+```
+
 ## semantic kitty scripts
 - the files are placed in `training_script_semantic_kitty` directory
 

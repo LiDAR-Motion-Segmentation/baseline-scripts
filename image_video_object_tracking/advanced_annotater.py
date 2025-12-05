@@ -313,9 +313,11 @@ def track_and_annotate(
 
                         # pixel based tracking
                         if track_id in tracker_history:
-                            last_center_3d, last_center_2d, static_frames = (
-                                tracker_history[track_id]
-                            )
+                            (
+                                last_center_3d,
+                                last_center_2d,
+                                static_frames,
+                            ) = tracker_history[track_id]
                             distance = math.dist(center_2d, last_center_2d)
                             distance_3d = math.dist(center_3d, last_center_3d)
                             if distance < cfg["tracking"]["movement_threshold_pixels"]:

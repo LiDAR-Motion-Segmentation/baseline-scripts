@@ -1,8 +1,7 @@
 import tkinter as tk
-from tkinter import messagebox, filedialog
-from PIL import Image, ImageTk, ImageDraw
+from tkinter import messagebox, ttk
+from PIL import Image, ImageTk
 import json
-import os
 import shutil
 import numpy as np
 from pathlib import Path
@@ -45,23 +44,33 @@ class MallTrackingRefiner:
         self.setup_ui()
         self.load_frame()
 
+        # Navigation
         self.root.bind("<Right>", lambda e: self.next_frame())
         self.root.bind("<Left>", lambda e: self.prev_frame())
+        self.root.bind("<Shift-Right>", lambda e: self.jump_frame(50))
+        self.root.bind("<Control-Right>", lambda e: self.jump_frame(100))
+
+        # Action
         self.root.bind("<Delete>", lambda e: self.delete_object())
-        self.root.bind("m", lambda e: self.toggle_status())
+        self.root.bind(
+            "m", lambda e: self.toggle_status(propagate=False)
+        )  # Toggle current only
+        self.root.bind(
+            "M", lambda e: self.toggle_status(propagate=True)
+        )  # Shift+M: Propagate Status
+        self.root.bind("p", lambda e: self.propagate_id())  # Propagate ID forward
 
     def setup_ui(self):
         # main canvas (left)
-        self.canvas_frame = tk.Frame(self.root, bg="#333333")
+        self.canvas_frame = tk.Frame(self.root, bg="#222")
         self.canvas_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
         self.canvas = tk.Canvas(self.canvas_frame, bg="black", highlightthickness=0)
         self.canvas.pack(fill=tk.BOTH, expand=True)
         self.canvas.bind("<Button-1>", self.on_canvas_click)
 
         # control panel (right)
         self.controls = tk.Frame(
-            self.root, width=320, bg="#f0f0f0", relief=tk.RAISED, borderwidth=1
+            self.root, width=320, bg="#eee", relief=tk.RAISED, borderwidth=1
         )
         self.controls.pack(side=tk.RIGHT, fill=tk.Y)
         self.controls.pack_propagate(False)
@@ -69,51 +78,69 @@ class MallTrackingRefiner:
         # header
         tk.Label(
             self.controls,
-            text="Refiner Controls",
+            text="Turbo Refiner",
             font=("Segoe UI", 16, "bold"),
-            bg="#f0f0f0",
+            bg="#eee",
         ).pack(pady=15)
         self.lbl_frame = tk.Label(
-            self.controls, text="Frame: 0/0", font=("Consolas", 10), bg="#f0f0f0"
+            self.controls, text="Frame: 0/0", font=("Consolas", 12), bg="#eee"
         )
         self.lbl_frame.pack(pady=5)
+
+        self.lbl_info = tk.Label(self.controls, text="Ready", fg="green", bg="#eee")
+        self.lbl_info.pack(pady=5)
 
         # edit section
         self.frame_edit = tk.LabelFrame(
             self.controls,
-            text="Selection Details",
+            text="Selection",
             padx=10,
             pady=10,
             font=("Segoe UI", 11, "bold"),
-            bg="#f0f0f0",
+            bg="#eee",
         )
         self.frame_edit.pack(fill=tk.X, padx=10, pady=10)
 
         # Global ID Input
-        tk.Label(self.frame_edit, text="Global ID:", bg="#f0f0f0").grid(
+        tk.Label(self.frame_edit, text="Global ID:", bg="#eee").grid(
             row=0, column=0, sticky="w"
         )
         self.ent_id = tk.Entry(self.frame_edit, width=8, font=("Consolas", 12))
         self.ent_id.grid(row=0, column=1, padx=5)
         tk.Button(
-            self.frame_edit, text="Update", command=self.update_id, bg="#e1e1e1"
+            self.frame_edit, text="Set (Enter)", command=self.update_id, bg="#ddd"
         ).grid(row=0, column=2)
 
-        # Status Toggle
-        tk.Label(self.frame_edit, text="Status:", bg="#f0f0f0").grid(
-            row=1, column=0, sticky="w", pady=10
+        # Propagate ID Button
+        tk.Button(
+            self.frame_edit,
+            text="Propagate ID fwd (P)",
+            command=self.propagate_id,
+            bg="#ffebcd",
+        ).grid(row=1, column=0, columnspan=3, pady=5, sticky="ew")
+
+        # Status
+        tk.Label(self.frame_edit, text="Status:", bg="#eee").grid(
+            row=2, column=0, sticky="w", pady=10
         )
         self.lbl_status = tk.Label(
-            self.frame_edit,
-            text="-",
-            font=("Segoe UI", 10, "bold"),
-            bg="#f0f0f0",
-            width=8,
+            self.frame_edit, text="-", font=("Segoe UI", 10, "bold"), bg="#eee", width=8
         )
-        self.lbl_status.grid(row=1, column=1)
+        self.lbl_status.grid(row=2, column=1)
         tk.Button(
-            self.frame_edit, text="Flip (M)", command=self.toggle_status, bg="#e1e1e1"
-        ).grid(row=1, column=2)
+            self.frame_edit,
+            text="Flip (m)",
+            command=lambda: self.toggle_status(False),
+            bg="#ddd",
+        ).grid(row=2, column=2)
+
+        # Propagate Status Button
+        tk.Button(
+            self.frame_edit,
+            text="Propagate Status fwd (Shift+M)",
+            command=lambda: self.toggle_status(True),
+            bg="#e6e6fa",
+        ).grid(row=3, column=0, columnspan=3, sticky="ew")
 
         # Delete Button
         tk.Button(
@@ -123,23 +150,13 @@ class MallTrackingRefiner:
             fg="red",
             font=("Segoe UI", 10, "bold"),
             command=self.delete_object,
-        ).grid(row=2, column=0, columnspan=3, pady=15, sticky="ew")
+        ).grid(row=4, column=0, columnspan=3, pady=15, sticky="ew")
 
-        # Navigation Footer
-        self.frame_nav = tk.Frame(self.controls, bg="#f0f0f0")
-        self.frame_nav.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=20)
-
-        tk.Button(
-            self.frame_nav, text="< Prev", command=self.prev_frame, width=10, height=2
-        ).pack(side=tk.LEFT)
-        tk.Button(
-            self.frame_nav,
-            text="Save & Next >",
-            command=self.next_frame,
-            bg="#ccffcc",
-            width=15,
-            height=2,
-        ).pack(side=tk.RIGHT)
+        # Instructions
+        help_text = "Hotkeys:\n--> : Next\nShift+--> : Jump 50\nP : Fix ID in future frames\nShift+M : Fix Status in future"
+        tk.Label(
+            self.controls, text=help_text, justify=tk.LEFT, bg="#eee", fg="#555"
+        ).pack(side=tk.BOTTOM, pady=20)
 
     def load_frame(self):
         input_json_path = self.files[self.current_idx]
@@ -270,6 +287,48 @@ class MallTrackingRefiner:
             self.lbl_status.config(text="-")
             self.frame_edit.config(text="No Selection", fg="gray")
 
+    def propagate_id(self):
+        # Update this object's ID in ALL future frames (by Local ID tracking)
+        if self.selected_obj_idx < 0:
+            return
+
+        target_obj = self.current_data[self.selected_obj_idx]
+        local_id_to_track = target_obj.get("local_id")
+
+        try:
+            new_global_id = int(self.ent_id.get())
+        except ValueError:
+            return
+
+        count = 0
+        # iterate future frames
+        for i in range(self.current_idx + 1, len(self.files)):
+            f_in = self.files[i]
+            f_out = self.out_json / f_in.name
+            load_p = f_out if f_out.exists() else f_in
+
+            with open(load_p, "r") as f:
+                data = json.load(f)
+
+            found = False
+            for obj in data:
+                # We match by 'local_id' (BoT-SORT ID) to ensure continuity
+                if obj.get("local_id") == local_id_to_track:
+                    obj["global_id"] = new_global_id
+                    found = True
+
+            if found:
+                with open(f_out, "w") as f:
+                    json.dump(data, f, indent=2)
+                count += 1
+            else:
+                pass
+
+        self.lbl_info.config(
+            text=f"Propagated ID {new_global_id} to {count} frames!", fg="blue"
+        )
+        self.redraw()
+
     def update_id(self):
         if self.selected_obj_idx >= 0:
             try:
@@ -279,12 +338,47 @@ class MallTrackingRefiner:
             except ValueError:
                 messagebox.showerror("Input Error", "ID must be a number.")
 
-    def toggle_status(self):
-        if self.selected_obj_idx >= 0:
-            curr = self.current_data[self.selected_obj_idx].get("status", "Static")
-            new_status = "Static" if curr == "Moving" else "Moving"
-            self.current_data[self.selected_obj_idx]["status"] = new_status
-            self.redraw()
+    def toggle_status(self, propagate=False):
+        if self.selected_obj_idx < 0:
+            return
+
+        # curr = self.current_data[self.selected_obj_idx].get("status", "Static")
+        # new_status = "Static" if curr == "Moving" else "Moving"
+        # self.current_data[self.selected_obj_idx]["status"] = new_status
+        # self.redraw()
+
+        target_obj = self.current_data[self.selected_obj_idx]
+        curr = target_obj.get("status", "Static")
+        new_status = "Static" if curr == "Moving" else "Moving"
+        target_obj["status"] = new_status
+
+        msg = "Flipped Status"
+
+        if propagate:
+            local_id_to_track = target_obj.get("local_id")
+            count = 0
+            for i in range(self.current_idx + 1, len(self.files)):
+                f_in = self.files[i]
+                f_out = self.out_json / f_in.name
+                load_p = f_out if f_out.exists() else f_in
+
+                with open(load_p, "r") as f:
+                    data = json.load(f)
+
+                found = False
+                for obj in data:
+                    if obj.get("local_id") == local_id_to_track:
+                        obj["status"] = new_status
+                        found = True
+
+                if found:
+                    with open(f_out, "w") as f:
+                        json.dump(data, f, indent=2)
+                    count += 1
+            msg = f"Propagated Status to {count} frames!"
+
+        self.lbl_info.config(text=msg, fg="blue")
+        self.redraw()
 
     def delete_object(self):
         if self.selected_obj_idx >= 0:
