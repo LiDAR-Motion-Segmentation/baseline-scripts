@@ -6,7 +6,7 @@ import argparse
 import numpy as np
 import insightface
 from insightface.app import FaceAnalysis
-from mutliprocessing import Pool, cpu_count
+from multiprocessing import Pool, cpu_count
 from tqdm import tqdm
 from pathlib import Path
 from typing import Tuple, List, Optional
