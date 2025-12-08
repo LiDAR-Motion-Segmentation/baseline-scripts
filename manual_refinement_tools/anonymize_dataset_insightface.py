@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 class FaceAnonymizer:
     def __init__(
-        self, detection_threshold: float = 0.5, device: str = "cuda:0"
+        self, detection_threshold: float = 0.25, device: str = "cuda:0"
     ) -> None:
         # detection_threshold (float): Confidence threshold (0.0 to 1.0). Lower = more faces detected but more false positives.
         self.app = FaceAnalysis(allowed_modules=["detection"])
@@ -35,9 +35,9 @@ class FaceAnonymizer:
         Calculates a blur kernel size relative to the face dimensions.
         Ensures the kernel is always odd (required by GaussianBlur).
         """
-        # A factor of 0.15 (15%) provides a strong blur without destroying context
-        kernel_width = int(min(w, h) * 0.15)
-        kernel_height = int(min(w, h) * 0.15)
+        # Increased factor from 0.15 to 0.75 (75% of face size)
+        kernel_width = int(min(w, h) * 0.75)
+        kernel_height = int(min(w, h) * 0.75)
 
         # ensuring that the kernel is odd
         if kernel_height % 2 == 0:
@@ -91,7 +91,7 @@ class FaceAnonymizer:
 
             # Apply Gaussian Blur
             # SigmaX=0 lets OpenCV calculate sigma from kernel size automatically
-            blurred_roi = cv2.GaussianBlur(roi, kernel_size, 0)
+            blurred_roi = cv2.GaussianBlur(roi, kernel_size, 30)
 
             # Place blurred ROI back into image
             processed_img[y1:y2, x1:x2] = blurred_roi
