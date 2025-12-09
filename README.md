@@ -7,8 +7,9 @@
 6) Deployment on `NVIDIA Jetson Orin NX` using `ONNX` and `TensorRT` for faster inferencing and realtime operation.
 7) Multi Camera based Multi Object Tracking using 5 intel realsense cameras with `BoT-SORT` + `Torchreid` + `RTMPose` for detecting moving non moving people
 8) Benchmarking results on `MOT Challenge`
-9) Manual refinement code for images to fix false detections
-10) Extra utility codes for adapting `Motion Object Segmentation Algoritms` for JRDB dataset and semantic kitty dataset for testing pointcloud based tracking algorithms for moving and non-moving objects segmentation
+9) Manual refinement code for images to fix false detections of IDs, moving and static classes
+10) Face blurring code for maintaining privacy using `yolov11-face` and `mediapipe`
+11) Extra utility codes for adapting `Motion Object Segmentation Algoritms` for JRDB dataset and semantic kitty dataset for testing pointcloud based tracking algorithms for moving and non-moving objects segmentation
 
 ![alt text](./assets/Screenshot%20from%202025-11-26%2011-08-17.png)
 
@@ -500,11 +501,7 @@ python3 manual_refinement_tools/manual_refiner.py \
 
 ```bash
 # for dark mode and propagation feature for future ID ,class with completion bar
-python3 manual_refiner_v2.py \         
-    --img_dir /home/soumoroy/Downloads/MCMPT_output_nice_op/camera1 \
-    --json_dir /home/soumoroy/Downloads/MCMPT_output_nice_op/cam_1/json \
-    --out_dir /home/soumoroy/Downloads/MCMPT_output_nice_op/final_dataset/cam_1 \
-    --config /home/soumoroy/baseline-scripts/config/ui_theme.yaml
+bash run_refiner_with_bbox_creation.sh
 ```
 ![alt text](./assets/Screenshot%20from%202025-12-01%2017-09-50.png)
 
@@ -519,6 +516,15 @@ python3 manual_refinement_tools/siamese_splay_stitcher.py \
 --img_dir /scratch/soumo_roy/baseline-scripts/image_video_object_tracking/MCMPT_output_nice_op/cam_4/images \
 --out_dir ./siamese_op_cam4
 ```
+
+## face blur for privacy
+- we use a `yolov11-face` along with `mediapipe` for face detection
+- we also use a round gaussian filter so that the image dont get messed up while traininf neural networks
+- change the path in the `blur_people_face_config` config to load the images and change the parameters
+```bash
+python3 manual_refinement_tools/round_gaussian_face_detector.py 
+```
+![alt text](./assets/000433.png)
 
 ## semantic kitty scripts
 - the files are placed in `training_script_semantic_kitty` directory
