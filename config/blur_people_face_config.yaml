@@ -1,13 +1,13 @@
 io:
-  input_dir: ""
-  output_dir: ""
+  input_dir: "/scratch/soumo_roy/baseline-scripts/rosbag_processing_script/data_extraction/camera2"
+  output_dir: "/scratch/soumo_roy/baseline-scripts/manual_refinement_tools/blur_people_face/cam2"
 
 system:
   device: "cuda:0"
   batch_size: 1
 
 model:
-  path: ""
+  path: "/scratch/soumo_roy/baseline-scripts/weights/yolov11l-face.pt"
   conf_threshold: 0.3
   iou_threshold: 0.5
 
