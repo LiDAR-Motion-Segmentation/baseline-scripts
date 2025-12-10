@@ -1,5 +1,6 @@
 # Auto annotation pipeline for wheelchair project
 [![Python CI/CD for 3D Annotation](https://github.com/LiDAR-Motion-Segmentation/baseline-scripts/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/LiDAR-Motion-Segmentation/baseline-scripts/actions/workflows/ci-cd.yml)
+[![Badge for OS](https://img.shields.io/badge/OS-Ubuntu_22.04-blue)](https://releases.ubuntu.com/jammy/)
 
 ## Contents
 
