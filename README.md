@@ -1,4 +1,7 @@
 # Auto annotation pipeline for wheelchair project
+
+## Contents
+
 1) Custom Data Parsing from ROSbags and Data Annotation pipeline in `Semantic Kitty` format for converting an rosbag into annotated data for `Motion Object Segmentation Algoritms` using `YOLOv8 + SAM2`.
 2) Hardware setup for custom data collection
 3) Docker devcontainer and RVIZ2 setup for visualization
