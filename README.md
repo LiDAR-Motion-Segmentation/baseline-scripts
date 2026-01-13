@@ -531,6 +531,29 @@ python3 manual_refinement_tools/round_gaussian_face_detector.py
 ```
 ![alt text](./assets/000433.png)
 
+## Video conversion script and linters
+- modular `image_to_video_conversion.cpp` script for converting a set of frames to video for ease of visualization if rerun fails
+```c++
+sudo apt install libopencv-dev
+cd manual_refinement_tools/
+
+# first compile the code
+g++ image_to_video_conversion.cpp -o image_to_video_conversion -std=c++17 `pkg-config --cflags --libs opencv4`
+
+# running the code
+./image_to_video_conversion ./dataset/<directory of images> -n 500 -o result.mp4 -fps 60
+
+```
+- `std::filesystem`: I used std::filesystem (C++17) instead of legacy string manipulation for paths. It handles OS-specific separators (/ vs \) automatically, making the code cross-platform (Windows/Linux).
+- `RAII (Resource Acquisition Is Initialization)`: The `VideoEncoder` class handles the opening and closing of the video file. The destructor `~VideoEncoder()` automatically saves the file when the object goes out of scope. This prevents corrupted video files if the program crashes or exits early.
+- `Robust Resolution Handling`: In production datasets, sometimes one image might be off by a pixel (due to bad cropping). I added a check in `write_frame`
+
+### `Black` linting tool has been chosen for neatness
+```
+# for linting using black use the following command for CI in repo
+black .
+```
+
 ## semantic kitty scripts
 - the files are placed in `training_script_semantic_kitty` directory
 
