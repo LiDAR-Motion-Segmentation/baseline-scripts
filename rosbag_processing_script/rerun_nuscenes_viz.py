@@ -67,7 +67,7 @@ def visualize_scene(dataroot, scene_idx=0):
         # Create a simple color map (White = High intensity, Blue-ish = Low)
         colors = np.zeros((len(points), 3))
         colors[:, 0] = normalized_intensity  # R
-        colors[:, 1] = np.ones_like(intensity) # G
+        colors[:, 1] = np.ones_like(intensity)  # G
         colors[:, 2] = normalized_intensity  # B (Tint blue)
 
         # D. Log to Rerun
