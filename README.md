@@ -638,6 +638,8 @@ logging:
 ```
 
 ## Visualization
+
+### Semantic kitty
 - use rerun to visualize the result.
 ```
 rerun --serve & disown
@@ -646,6 +648,12 @@ python3 -m scripts.visualize_semantic_kitty --config_path <path>/config/semantic
 - left side is the predictions and right side is the ground truth
 ![alt text](./assets/image-1.png)
 
+### Nuscenes dataset
+- To visualize the 3D,2D bounding boxes and images, pcd
+```
+python3 rosbag_processing_script/rerun_nuscenes_camera.py --root /path/to/dataset/ --scene 0 
+```
+![alt text](./assets/nuscenes.png)
 
 ## Acknowledgment
 - I have used [temporal-point-transformer](https://github.com/LiDAR-Motion-Segmentation/temporal-point-transformer) model to train and evaluate on.
