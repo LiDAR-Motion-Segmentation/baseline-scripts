@@ -70,12 +70,7 @@ def main():
 
         for (
             idx,
-            (
-                lidar_ts,
-                lidar_data,
-                lidar_conn,
-                (img_ts, img_data, img_conn),
-            ),
+            (lidar_ts, lidar_data, lidar_conn, (img_ts, img_data, img_conn),),
         ) in enumerate(sync_pairs):
             try:
                 # --- Process image ---

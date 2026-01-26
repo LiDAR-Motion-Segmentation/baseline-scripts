@@ -212,12 +212,7 @@ def main():
     # Process primary camera pairs
     for (
         idx,
-        (
-            lidar_ts,
-            lidar_data,
-            lidar_type,
-            (img_ts, img_data, img_type),
-        ),
+        (lidar_ts, lidar_data, lidar_type, (img_ts, img_data, img_type),),
     ) in enumerate(sync_pairs_primary):
         try:
             # Process primary camera image
@@ -255,12 +250,7 @@ def main():
     if args.multi_camera:
         for (
             idx,
-            (
-                lidar_ts,
-                lidar_data,
-                lidar_type,
-                (img_ts, img_data, img_type),
-            ),
+            (lidar_ts, lidar_data, lidar_type, (img_ts, img_data, img_type),),
         ) in enumerate(sync_pairs_secondary):
             try:
                 # Process secondary camera image
@@ -285,12 +275,7 @@ def main():
 
         for (
             idx,
-            (
-                lidar_ts,
-                lidar_data,
-                lidar_type,
-                (img_ts, img_data, img_type),
-            ),
+            (lidar_ts, lidar_data, lidar_type, (img_ts, img_data, img_type),),
         ) in enumerate(sync_pairs_tertiary):
             try:
                 # Process tertiary camera image (360 degree camera)
