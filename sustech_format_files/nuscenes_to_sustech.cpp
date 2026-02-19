@@ -1,6 +1,9 @@
 /**
  * @file nuscenes_to_sustech.cpp
  * @brief Converts nuScenes mini-split sequences into SUSTechPOINTS format.
+ * running instruction
+ * g++ -std=c++17 -O3 -I. nuscenes_to_sustech.cpp -o nusc_converter
+ * ./nusc_converter /home/soumoroy/Downloads/v1.0-mini/ /home/soumoroy/Downloads/annotations/aug5_sustech/nuscenes_v2/ scene-0103
  */
 #include <iostream>
 #include <string>
