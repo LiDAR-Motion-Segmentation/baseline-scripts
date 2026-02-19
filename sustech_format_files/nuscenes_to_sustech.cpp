@@ -229,6 +229,88 @@ public:
             return false;
         }
     }
+
+    bool extractCalibData() const {
+        std::cout << "[INFO] Extracting Camera Calibration Data...\n";
+        try {
+            json scenes = readJson("scene.json");
+            json sample_data = readJson("sample_data.json");
+            json calib_sensors = readJson("calibrated_sensor.json");
+
+            std::string first_sample_token = "";
+            for (const auto& scene : scenes) {
+                if (scene.contains("name") && scene["name"] == sequence_name_) {
+                    first_sample_token = scene["first_sample_token"];
+                    break;
+                }
+            }
+
+            std::map<std::string, json> calib_map;
+            for (const auto& cs : calib_sensors) {
+                if (cs.contains("token")) calib_map[cs["token"]] = cs;
+            }
+
+            std::vector<std::string> cameras = {
+                "CAM_FRONT_LEFT", "CAM_FRONT_RIGHT", "CAM_FRONT",
+                "CAM_BACK_LEFT", "CAM_BACK_RIGHT", "CAM_BACK"
+            };
+
+            // Keep track of which cameras we've written calibration for
+            std::map<std::string, bool> calib_written;
+
+            for (const auto& sd : sample_data) {
+                if (sd.contains("sample_token") && sd["sample_token"] == first_sample_token) {
+                    std::string filename = sd["filename"];
+                    std::string current_cam = "";
+                    for (const auto& cam : cameras) {
+                        if (filename.find(cam) != std::string::npos) {
+                            current_cam = cam;
+                            break;
+                        }
+                    }
+
+                    // If it's a camera and we haven't written its JSON yet
+                    if (!current_cam.empty() && !calib_written[current_cam]) {
+                        std::string calib_token = sd["calibrated_sensor_token"];
+                        json calib_info = calib_map[calib_token];
+
+                        // extract data
+                        int width = sd["width"];
+                        int height = sd["height"];
+                        auto K = calib_info["camera_intrinsic"];
+
+                        // Format output to exactly match SUSTechPOINTS expectation
+                        nlohmann::ordered_json output_json;
+                        output_json["width"] = width;
+                        output_json["height"] = height;
+                        output_json["fx"] = K[0][0];
+                        output_json["fy"] = K[1][1];
+                        output_json["cx"] = K[0][2];
+                        output_json["cy"] = K[1][2];
+                        output_json["skew"] = K[0][1];
+                        output_json["distortion"] = {-0.054603107273578644, 
+                            0.06334752589464188, 
+                            0.00022518340847454965, 
+                            0.0002921034465543926, 
+                            -0.020296046510338783}; // Example standard distortion to ensure 5 floats
+
+                        // Write to calib/camera/CAM_NAME.json
+                        fs::path out_file = fs::path(output_path_) / sequence_name_ / "calib" / "camera" / (current_cam + ".json");
+                        std::ofstream o(out_file);
+                        o << std::setw(2) << output_json << std::endl; // Indent with 2 spaces
+
+                        calib_written[current_cam] = true;
+                        std::cout << "[INFO] Wrote calibration for " << current_cam << "\n";
+                    }
+                }
+            }
+            return true;
+        }
+        catch (const std::exception& e) {
+            std::cerr << "[ERROR] Exception during calibration extraction: " << e.what() << "\n";
+            return false;
+        }
+    }
 };
 
 int main(int argc, char* argv[]) {
@@ -262,6 +344,11 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
-    std::cout << "[INFO] Step 1 complete. Ready to populate files.\n";
+    if (!converter.extractCalibData()){
+        std::cerr << "[ERROR] Pipeline aborted during sensor calibration data extraction.\n";
+        return EXIT_FAILURE;
+    }
+
+    std::cout << "[INFO] Completed. Ready to populate files.\n";
     return EXIT_SUCCESS;
 };
