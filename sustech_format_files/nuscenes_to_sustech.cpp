@@ -311,6 +311,72 @@ public:
             return false;
         }
     }
+
+    bool generateFilenameLists() const {
+        std::cout << "[INFO] Generating filename list text files...\n";
+        try {
+            fs::path seq_dir = fs::path(output_path_) / sequence_name_;
+            fs::path lidar_dir = seq_dir / "lidar";
+
+            int num_frames = 0;
+            if (fs::exists(lidar_dir)) {
+                for (const auto& entry : fs::directory_iterator(lidar_dir)) {
+                    if (entry.path().extension() == ".pcd") {
+                        num_frames++;
+                    }
+                }
+            }
+            else {
+                std::cerr << "[ERROR] Lidar directory not found. Run extractSensorData first.\n";
+                return false;
+            }
+
+            if (num_frames == 0) {
+                std::cerr << "[WARNING] No frames found to generate lists for.\n";
+                return false;
+            }
+
+            fs::path pc_file_path = seq_dir / "point_cloud_filenames.txt";
+            std::ofstream pc_file(pc_file_path);
+            for (int i = 0; i < num_frames; ++i) {
+                std::ostringstream frame_str;
+                frame_str << std::setw(6) << std::setfill('0') << i;
+                pc_file << "lidar/" << frame_str.str() << ".pcd\n";
+            }
+            std::cout << "[INFO] Wrote point_cloud_filenames.txt (" << num_frames << " frames)\n";
+
+            std::vector<std::string> cameras = {
+                "CAM_FRONT", "CAM_FRONT_LEFT", "CAM_FRONT_RIGHT",
+                "CAM_BACK", "CAM_BACK_LEFT", "CAM_BACK_RIGHT"
+            };
+
+            for (const auto& cam : cameras) {
+                fs::path cam_file_path = seq_dir / (cam + "_filenames.txt");
+                std::ofstream cam_file(cam_file_path);
+                for (int i = 0; i < num_frames; ++i) {
+                    std::ostringstream frame_str;
+                    frame_str << std::setw(6) << std::setfill('0') << i;
+                    cam_file << "camera/" << cam << "/" << frame_str.str() << ".png\n";
+                }
+            }
+            std::cout << "[INFO] Wrote all 6 camera filename lists.\n";
+
+            fs::path ann_file_path = seq_dir / "annotation_filenames.txt";
+            std::ofstream ann_file(ann_file_path);
+            for (int i = 0; i < num_frames; ++i) {
+                std::ostringstream frame_str;
+                frame_str << std::setw(6) << std::setfill('0') << i;
+                ann_file << "label/" << frame_str.str() << ".json\n";
+            }
+            std::cout << "[INFO] Wrote annotation_filenames.txt\n";
+
+            return true;
+        }
+        catch (const std::exception& e) {
+            std::cerr << "[ERROR] Exception during filename list generation: " << e.what() << "\n";
+            return false;
+        }
+    }
 };
 
 int main(int argc, char* argv[]) {
@@ -349,6 +415,11 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
-    std::cout << "[INFO] Completed. Ready to populate files.\n";
+    if (!converter.generateFilenameLists()){
+        std::cerr << "[ERROR] Pipeline aborted during file list generation.\n";
+        return EXIT_FAILURE;
+    }
+
+    std::cout << "[INFO] Execution finished successfully!\n";
     return EXIT_SUCCESS;
 };
