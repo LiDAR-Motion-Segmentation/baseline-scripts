@@ -30,6 +30,7 @@ private:
     file >> j;
     return j;
     }
+
     // Helper to convert nuScenes 5-channel .bin to 4-channel .pcd
     void convertBinToPcd(const fs::path& input_bin, const fs::path& output_pcd) const {
         std::ifstream in(input_bin, std::ios::binary);
@@ -133,7 +134,7 @@ public:
 
             std::string first_sample_token = "";
             for (const auto& scene : scenes) {
-                if (scene["name"] == sequence_name_) {
+                if (scene.contains("name") && scene["name"] == sequence_name_) {
                     first_sample_token = scene["first_sample_token"];
                     break;
                 }
@@ -144,25 +145,36 @@ public:
                 return false;
             }
 
-            std::map<std::string, json> sample_data_map;
+            std::map<std::string, std::vector<json>> sample_to_data;
             for (const auto& sd : sample_data) {
-                sample_data_map[sd["token"]] = sd;
+                if (sd.contains("is_key_frame") && sd["is_key_frame"] == true) {
+                    if (sd.contains("sample_token")) {
+                        std::string s_token = sd["sample_token"];
+                        sample_to_data[s_token].push_back(sd);
+                    }
+                }
             }
 
             std::map<std::string, json> sample_map;
             for (const auto& s : samples) {
-                sample_map[s["token"]] = s;
+                if (s.contains("token")) {
+                    sample_map[s["token"]] = s;
+                }
             }
 
             std::string current_sample_token = first_sample_token;
             int frame_index = 0;
 
             std::vector<std::string> sensors = {
-                "CAM_FRONT", "CAM_FRONT_LEFT", "CAM_FRONT_RIGHT",
-                "CAM_BACK", "CAM_BACK_LEFT", "CAM_BACK_RIGHT", "LIDAR_TOP"
+                "CAM_FRONT_LEFT", "CAM_FRONT_RIGHT", "CAM_FRONT",
+                "CAM_BACK_LEFT", "CAM_BACK_RIGHT", "CAM_BACK", "LIDAR_TOP"
             };
 
             while (!current_sample_token.empty()) {
+                if (sample_map.find(current_sample_token) == sample_map.end()) {
+                    break; // Safety break
+                }
+
                 const auto& sample = sample_map[current_sample_token];
 
                 std::ostringstream frame_str;
@@ -170,33 +182,48 @@ public:
                 std::string frame_name = frame_str.str();
                 std::cout << "[INFO] Processing frame: " << frame_name << "\n";
 
-                for (const auto& sensor : sensors) {
-                    if (sample["data"].contains(sensor)) {
-                        std::string data_token = sample["data"][sensor];
-                        std::string filename = sample_data_map[data_token]["filename"];
+                auto data_it = sample_to_data.find(current_sample_token);
+                if (data_it != sample_to_data.end()) {
+                    for (const auto& sd : data_it->second) {
+                        std::string filename = sd["filename"];
+                        
+                        std::string current_sensor = "";
+                        for (const auto& sensor : sensors) {
+                            if (filename.find(sensor) != std::string::npos) {
+                                current_sensor = sensor;
+                                break;
+                            }
+                        }
 
-                        fs::path source_path = fs::path(dataset_path_) / filename;
-                        if (sensor == "LIDAR_TOP") {
-                            fs::path target_path = fs::path(output_path_) / sequence_name_ / "lidar" / (frame_name + ".pcd");
-                            convertBinToPcd(source_path, target_path);
-                        } 
-                        else {
-                            fs::path target_path = fs::path(output_path_) / sequence_name_ / "camera" / sensor / (frame_name + ".png");
-                            if (fs::exists(source_path)) {
-                                fs::copy_file(source_path, target_path, fs::copy_options::overwrite_existing);
+                        if (!current_sensor.empty()) {
+                            fs::path source_path = fs::path(dataset_path_) / filename;
+                            
+                            if (current_sensor == "LIDAR_TOP") {
+                                fs::path target_path = fs::path(output_path_) / sequence_name_ / "lidar" / (frame_name + ".pcd");
+                                convertBinToPcd(source_path, target_path);
+                            } else {
+                                fs::path target_path = fs::path(output_path_) / sequence_name_ / "camera" / current_sensor / (frame_name + ".png");
+                                if (fs::exists(source_path)) {
+                                    fs::copy_file(source_path, target_path, fs::copy_options::overwrite_existing);
+                                }
+                            }
                         }
                     }
                 }
-            }
 
-            current_sample_token = sample["next"];
-            frame_index++;
-        }
+                // Safely grab the next token in the sequence list
+                if (sample.contains("next") && !sample["next"].is_null() && !sample["next"].get<std::string>().empty()) {
+                    current_sample_token = sample["next"];
+                } else {
+                    current_sample_token = ""; // End loop
+                }
+                
+                frame_index++;
+            }
 
         std::cout << "[INFO] Successfully extracted data for " << frame_index << " frames.\n";
             return true;
-        }
-
+        } 
         catch (const std::exception& e) {
             std::cerr << "[ERROR] Exception during data extraction: " << e.what() << "\n";
             return false;
