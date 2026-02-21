@@ -16,6 +16,34 @@
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
+using ordered_json = nlohmann::ordered_json;
+
+struct Vec3 { double x, y, z; };
+struct Quat { double w, x, y, z; };
+
+Vec3 rotate_vector(const Quat& q, const Vec3& v) {
+    double tx = 2.0 * (q.y * v.z - q.z * v.y);
+    double ty = 2.0 * (q.z * v.x - q.x * v.z);
+    double tz = 2.0 * (q.x * v.y - q.y * v.x);
+    return {
+        v.x + q.w * tx + (q.y * tz - q.z * ty),
+        v.y + q.w * ty + (q.z * tx - q.x * tz),
+        v.z + q.w * tz + (q.x * ty - q.y * tx)
+    };
+}
+
+Quat inverse(const Quat& q) {
+    return {q.w, -q.x, -q.y, -q.z};
+}
+
+Quat multiply(const Quat& q1, const Quat& q2) {
+    return {
+        q1.w*q2.w - q1.x*q2.x - q1.y*q2.y - q1.z*q2.z,
+        q1.w*q2.x + q1.x*q2.w + q1.y*q2.z - q1.z*q2.y,
+        q1.w*q2.y - q1.x*q2.z + q1.y*q2.w + q1.z*q2.x,
+        q1.w*q2.z + q1.x*q2.y - q1.y*q2.x + q1.z*q2.w
+    };
+}
 
 class NuScenesToSustechConverter {
 private:
@@ -32,6 +60,17 @@ private:
     json j;
     file >> j;
     return j;
+    }
+
+    std::string mapCategory(const std::string& cat_name) const {
+        if (cat_name.find("human") != std::string::npos) return "moving_people";
+        if (cat_name.find("vehicle.car") != std::string::npos) return "moving_car";
+        if (cat_name.find("vehicle.truck") != std::string::npos) return "moving_truck";
+        if (cat_name.find("vehicle.bus") != std::string::npos) return "moving_bus";
+        if (cat_name.find("vehicle.bicycle") != std::string::npos || 
+            cat_name.find("vehicle.motorcycle") != std::string::npos) return "moving_cyclist";
+        if (cat_name.find("vehicle.construction") != std::string::npos) return "moving_construction_vehicle";
+        return "unknown";
     }
 
     // Helper to convert nuScenes 5-channel .bin to 4-channel .pcd
@@ -83,9 +122,9 @@ public:
             const std::string& dataset_path,
             const std::string& output_path,
             const std::string& sequence_name):
-          dataset_path_(dataset_path), 
-          output_path_(output_path), 
-          sequence_name_(sequence_name) {}
+            dataset_path_(dataset_path), 
+            output_path_(output_path), 
+            sequence_name_(sequence_name) {}
 
     /**
      * @brief Creates the target directory tree required by SUSTechPOINTS.
@@ -380,6 +419,148 @@ public:
             return false;
         }
     }
+
+    bool extractGTAnnotations() const {
+        std::cout << "[INFO] Extracting Raw nuScenes GT Annotations...\n";
+        try {
+            json scenes = readJson("scene.json");
+            json samples = readJson("sample.json");
+            json sample_data = readJson("sample_data.json");
+            json annotations = readJson("sample_annotation.json");
+            json ego_poses = readJson("ego_pose.json");
+            json calib_sensors = readJson("calibrated_sensor.json");
+            json categories = readJson("category.json");
+            json instances = readJson("instance.json"); // Added instance mapping!
+
+            std::map<std::string, json> category_map, ego_map, calib_map, sample_map, instance_map;
+            for (const auto& c : categories) category_map[c["token"].get<std::string>()] = c;
+            for (const auto& e : ego_poses) ego_map[e["token"].get<std::string>()] = e;
+            for (const auto& cs : calib_sensors) calib_map[cs["token"].get<std::string>()] = cs;
+            for (const auto& s : samples) sample_map[s["token"].get<std::string>()] = s;
+            for (const auto& i : instances) instance_map[i["token"].get<std::string>()] = i;
+
+            std::map<std::string, std::vector<json>> sample_to_data;
+            for (const auto& sd : sample_data) {
+                if (sd.contains("is_key_frame") && sd["is_key_frame"] == true && sd.contains("sample_token")) {
+                    sample_to_data[sd["sample_token"].get<std::string>()].push_back(sd);
+                }
+            }
+
+            std::map<std::string, std::vector<json>> sample_to_anns;
+            for (const auto& a : annotations) {
+                if (a.contains("sample_token")) {
+                    sample_to_anns[a["sample_token"].get<std::string>()].push_back(a);
+                }
+            }
+
+            std::string first_sample_token = "";
+            for (const auto& scene : scenes) {
+                if (scene.contains("name") && scene["name"] == sequence_name_) {
+                    first_sample_token = scene["first_sample_token"];
+                    break;
+                }
+            }
+            if (first_sample_token.empty()) return false;
+
+            std::string current_sample_token = first_sample_token;
+            int frame_index = 0;
+
+            while (!current_sample_token.empty()) {
+                if (sample_map.find(current_sample_token) == sample_map.end()) break;
+                const auto& sample = sample_map[current_sample_token];
+                
+                json lidar_data;
+                auto data_it = sample_to_data.find(current_sample_token);
+                if (data_it != sample_to_data.end()) {
+                    for (const auto& sd : data_it->second) {
+                        std::string filename = sd["filename"].get<std::string>();
+                        if (filename.find("LIDAR_TOP") != std::string::npos) {
+                            lidar_data = sd;
+                            break;
+                        }
+                    }
+                }
+
+                if (lidar_data.empty()) {
+                    current_sample_token = (sample.contains("next") && !sample["next"].is_null()) ? sample["next"].get<std::string>() : "";
+                    frame_index++;
+                    continue;
+                }
+
+                json ego = ego_map[lidar_data["ego_pose_token"].get<std::string>()];
+                json cs = calib_map[lidar_data["calibrated_sensor_token"].get<std::string>()];
+
+                Vec3 T_ego = {ego["translation"][0], ego["translation"][1], ego["translation"][2]};
+                Quat Q_ego = {ego["rotation"][0], ego["rotation"][1], ego["rotation"][2], ego["rotation"][3]};
+
+                Vec3 T_sens = {cs["translation"][0], cs["translation"][1], cs["translation"][2]};
+                Quat Q_sens = {cs["rotation"][0], cs["rotation"][1], cs["rotation"][2], cs["rotation"][3]};
+
+                nlohmann::ordered_json output_json = json::array();
+                int obj_id_counter = 1;
+
+                auto anns_it = sample_to_anns.find(current_sample_token);
+                if (anns_it != sample_to_anns.end()) {
+                    for (const auto& ann : anns_it->second) {
+                        Vec3 box_center = {ann["translation"][0], ann["translation"][1], ann["translation"][2]};
+                        Quat box_rot = {ann["rotation"][0], ann["rotation"][1], ann["rotation"][2], ann["rotation"][3]};
+
+                        // Global -> Ego
+                        Vec3 p_ego = rotate_vector(inverse(Q_ego), {box_center.x - T_ego.x, box_center.y - T_ego.y, box_center.z - T_ego.z});
+                        Quat rot_ego = multiply(inverse(Q_ego), box_rot);
+
+                        // Ego -> Sensor
+                        Vec3 p_sens = rotate_vector(inverse(Q_sens), {p_ego.x - T_sens.x, p_ego.y - T_sens.y, p_ego.z - T_sens.z});
+                        Quat rot_sens = multiply(inverse(Q_sens), rot_ego);
+
+                        double qw = rot_sens.w, qx = rot_sens.x, qy = rot_sens.y, qz = rot_sens.z;
+                        double yaw = std::atan2(2.0 * (qw * qz + qx * qy), 1.0 - 2.0 * (qy * qy + qz * qz));
+
+                        nlohmann::ordered_json sustech_box;
+                        sustech_box["obj_id"] = std::to_string(obj_id_counter++);
+                        
+                        // NEW INSTANCE/CATEGORY LOOKUP
+                        std::string inst_token = ann["instance_token"].get<std::string>();
+                        std::string cat_token = instance_map[inst_token]["category_token"].get<std::string>();
+                        std::string cat_name = category_map[cat_token]["name"].get<std::string>();
+                        
+                        sustech_box["obj_type"] = mapCategory(cat_name);
+                        
+                        // RAW nuScenes Sensor Coordinates (No Swaps)
+                        sustech_box["psr"]["position"]["x"] = p_sens.x;
+                        sustech_box["psr"]["position"]["y"] = p_sens.y;
+                        sustech_box["psr"]["position"]["z"] = p_sens.z;
+
+                        // nuScenes scale: [width, length, height]
+                        sustech_box["psr"]["scale"]["x"] = ann["size"][0]; 
+                        sustech_box["psr"]["scale"]["y"] = ann["size"][1]; 
+                        sustech_box["psr"]["scale"]["z"] = ann["size"][2]; 
+
+                        sustech_box["psr"]["rotation"]["x"] = 0.0;
+                        sustech_box["psr"]["rotation"]["y"] = 0.0;
+                        sustech_box["psr"]["rotation"]["z"] = yaw;
+
+                        output_json.push_back(sustech_box);
+                    }
+                }
+
+                std::ostringstream frame_str;
+                frame_str << std::setw(6) << std::setfill('0') << frame_index;
+                fs::path out_file = fs::path(output_path_) / sequence_name_ / "label" / (frame_str.str() + ".json");
+                
+                std::ofstream o(out_file);
+                o << std::setw(2) << output_json << std::endl;
+
+                current_sample_token = (sample.contains("next") && !sample["next"].is_null()) ? sample["next"].get<std::string>() : "";
+                frame_index++;
+            }
+            std::cout << "[INFO] Finished extracting Raw Ground Truth labels.\n";
+            return true;
+        } catch (const std::exception& e) {
+            std::cerr << "[ERROR] Exception during GT extraction: " << e.what() << "\n";
+            return false;
+        }
+    }
 };
 
 int main(int argc, char* argv[]) {
@@ -420,6 +601,11 @@ int main(int argc, char* argv[]) {
 
     if (!converter.generateFilenameLists()){
         std::cerr << "[ERROR] Pipeline aborted during file list generation.\n";
+        return EXIT_FAILURE;
+    }
+
+    if (!converter.extractGTAnnotations()){
+        std::cerr << "[ERROR] Pipeline aborted during GT labels generation.\n";
         return EXIT_FAILURE;
     }
 
