@@ -532,9 +532,9 @@ public:
                         sustech_box["psr"]["position"]["z"] = p_sens.z;
 
                         // nuScenes scale: [width, length, height]
-                        sustech_box["psr"]["scale"]["x"] = ann["size"][0]; 
-                        sustech_box["psr"]["scale"]["y"] = ann["size"][1]; 
-                        sustech_box["psr"]["scale"]["z"] = ann["size"][2]; 
+                        sustech_box["psr"]["scale"]["x"] = ann["size"][1]; // length
+                        sustech_box["psr"]["scale"]["y"] = ann["size"][0]; // width
+                        sustech_box["psr"]["scale"]["z"] = ann["size"][2]; // height 
 
                         sustech_box["psr"]["rotation"]["x"] = 0.0;
                         sustech_box["psr"]["rotation"]["y"] = 0.0;
