@@ -49,6 +49,10 @@ def get_points_in_box(points, box):
     return np.sum(inside_box_mask)
 
 def main(pcd_dir, gt_dir, pred_dir, num_frames):
+    # dictionary to hold class-wise metrics
+    class_metrics = {   }
+    
+    # global metrics
     total_gt_points = 0
     total_pred_points = 0
     total_absolute_error = 0
@@ -90,40 +94,79 @@ def main(pcd_dir, gt_dir, pred_dir, num_frames):
         with open(pred_path, 'r') as f:
             pred_boxes = json.load(f)
             
-        frame_gt_pts = 0
-        for box in pred_boxes:
-            if 'psr' in box:
-                frame_gt_pts += get_points_in_box(points, box['psr'])
-                
-        frame_pred_pts = 0
-        for box in pred_boxes:
-            if 'psr' in box:
-                frame_pred_pts += get_points_in_box(points, box['psr'])
-                
-        frame_error = abs(frame_gt_pts - frame_pred_pts)
+        # Temporary dictionaries to hold frame-level class counts
+        frame_gt_pts = {}
+        frame_pred_pts = {}
+        frame_gt_objs = {}
+        frame_pred_objs = {}
         
-        total_gt_points += frame_gt_pts
-        total_pred_points += frame_pred_pts
-        total_absolute_error += frame_error
-        total_objects_evaluated += max(len(gt_boxes), len(pred_boxes))
+        for box in gt_boxes:
+            cls = box.get('obj_type', 'unknown')
+            if 'psr' in box:
+                pts = get_points_in_box(points, box['psr'])
+                frame_gt_pts[cls] = frame_gt_pts.get(cls, 0) + pts
+                frame_gt_objs[cls] = frame_gt_objs.get(cls, 0) + 1
 
-        print(f"Frame {file} | GT Points: {frame_gt_pts:5} | Pred Points: {frame_pred_pts:5} | Error Diff: {frame_error}")
+        for box in pred_boxes:
+            cls = box.get('obj_type', 'unknown')
+            if 'psr' in box:
+                pts = get_points_in_box(points, box['psr'])
+                frame_pred_pts[cls] = frame_pred_pts.get(cls, 0) + pts
+                frame_pred_objs[cls] = frame_pred_objs.get(cls, 0) + 1
+                
+        # find all unique classes present in this frame
+        all_classes_in_frame = set(frame_gt_pts.keys()).union(set(frame_pred_pts.keys()))
+                
+        frame_error = 0
         
-    # Calculate final metrics for the table
-    mean_points_error = (total_absolute_error / total_objects_evaluated) if total_objects_evaluated > 0 else 0
+        for cls in all_classes_in_frame:
+            if cls not in class_metrics:
+                class_metrics[cls] = {'gt_pts': 0, 'pred_pts': 0, 'abs_error': 0, 'objs': 0}
+                
+            c_gt_p = frame_gt_pts.get(cls, 0)
+            c_pr_p = frame_pred_pts.get(cls, 0)
+            c_gt_o = frame_gt_objs.get(cls, 0)
+            c_pr_o = frame_pred_objs.get(cls, 0)
+            
+            c_err = abs(c_gt_p - c_pr_p)
+            c_objs = max(c_gt_o, c_pr_o) # Max accounts for FPs or FNs in object counts
+            
+            # update class metrics
+            class_metrics[cls]['gt_pts'] += c_gt_p
+            class_metrics[cls]['pred_pts'] += c_pr_p
+            class_metrics[cls]['abs_error'] += c_err
+            class_metrics[cls]['objs'] += c_objs
+            
+            # update global metrics
+            global_gt_pts += c_gt_p
+            global_pred_pts += c_pr_p
+            global_abs_error += c_err
+            global_objs += c_objs
+            
+            frame_total_err += c_err
+
+        print(f"Frame {file} processed | Total Error Diff: {frame_total_err}")
+
+    print("\n" + "="*80)
+    print(f"{'CLASS-WISE POINT BENCHMARK TABLE':^80}")
+    print("="*80)
+    print(f"{'Class Name':<25} | {'Objects':<8} | {'GT Points':<10} | {'Pred Points':<11} | {'Error / Object':<15}")
+    print("-" * 80)
+
+    # Print rows sorted alphabetically by class name
+    for cls in sorted(class_metrics.keys()):
+        metrics = class_metrics[cls]
+        objs = metrics['objs']
+        err_per_obj = (metrics['abs_error'] / objs) if objs > 0 else 0.0
+        
+        print(f"{cls:<25} | {objs:<8} | {metrics['gt_pts']:<10} | {metrics['pred_pts']:<11} | {err_per_obj:<15.2f}")
+
+    print("-" * 80)
     
-    # Print final results
-    print("\n" + "="*50)
-    print("             POINT ERROR BENCHMARK             ")
-    print("="*50)
-    print(f"Total Frames Evaluated     : {len(files)}")
-    print(f"Total Objects Evaluated    : {total_objects_evaluated}")
-    print(f"Total GT Points Captured   : {total_gt_points}")
-    print(f"Total Pred Points Captured : {total_pred_points}")
-    print(f"Total Absolute Point Error : {total_absolute_error}")
-    print("-" * 50)
-    print(f"Errors (Points/Object)     : {mean_points_error:.2f}")
-    print("="*50)
+    # Print the Overall row
+    global_err_per_obj = (global_abs_error / global_objs) if global_objs > 0 else 0.0
+    print(f"{'OVERALL':<25} | {global_objs:<8} | {global_gt_pts:<10} | {global_pred_pts:<11} | {global_err_per_obj:<15.2f}")
+    print("="*80 + "\n")
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate 3D Bounding Boxes by counting enclosed LiDAR points.")
