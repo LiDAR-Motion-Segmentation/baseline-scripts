@@ -146,9 +146,7 @@ class BagtoData(Node):
         os.makedirs(self.save_intrinsics, exist_ok=True)
 
         self.image1_sub = message_filters.Subscriber(
-            self,
-            Image,
-            "/camera1/camera1/color/image_raw",
+            self, Image, "/camera1/camera1/color/image_raw",
         )
         # self.depth_image1_sub = message_filters.Subscriber(
         #     self,
@@ -162,9 +160,7 @@ class BagtoData(Node):
             qos_profile,
         )
         self.image2_sub = message_filters.Subscriber(
-            self,
-            Image,
-            "/camera2/camera2/color/image_raw",
+            self, Image, "/camera2/camera2/color/image_raw",
         )
         # self.depth_image2_sub = message_filters.Subscriber(
         #     self,
@@ -178,25 +174,13 @@ class BagtoData(Node):
             qos_profile,
         )
         self.fisheye_sub = message_filters.Subscriber(
-            self,
-            Image,
-            "/dual_fisheye/image",
+            self, Image, "/dual_fisheye/image",
         )
         self.equirectangular_sub = message_filters.Subscriber(
-            self,
-            Image,
-            "/equirectangular/image",
+            self, Image, "/equirectangular/image",
         )
-        self.lidar_sub = message_filters.Subscriber(
-            self,
-            PointCloud2,
-            "/livox/lidar",
-        )
-        self.world2ego_sub = message_filters.Subscriber(
-            self,
-            Odometry,
-            "/Odometry",
-        )
+        self.lidar_sub = message_filters.Subscriber(self, PointCloud2, "/livox/lidar",)
+        self.world2ego_sub = message_filters.Subscriber(self, Odometry, "/Odometry",)
 
         self.time_sync = message_filters.ApproximateTimeSynchronizer(
             [
