@@ -53,10 +53,10 @@ def main(pcd_dir, gt_dir, pred_dir, num_frames):
     class_metrics = {   }
     
     # global metrics
-    total_gt_points = 0
-    total_pred_points = 0
-    total_absolute_error = 0
-    total_objects_evaluated = 0
+    global_gt_pts = 0
+    global_pred_pts = 0
+    global_abs_error = 0
+    global_objs = 0
     
     if not os.path.exists(pred_dir):
         print(f"[ERROR] Prediction directory not found: {pred_dir}")
@@ -117,7 +117,7 @@ def main(pcd_dir, gt_dir, pred_dir, num_frames):
         # find all unique classes present in this frame
         all_classes_in_frame = set(frame_gt_pts.keys()).union(set(frame_pred_pts.keys()))
                 
-        frame_error = 0
+        frame_total_err = 0
         
         for cls in all_classes_in_frame:
             if cls not in class_metrics:
